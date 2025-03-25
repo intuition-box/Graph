@@ -10,7 +10,7 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
 
   useEffect(() => {
     if (!triple) return; // Early return if no triple is provided
-    
+
     setLoading(true);
     setError(null);
     setAtomDetails(null); // Reset atom details when triple changes
@@ -32,7 +32,10 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
 
         if (triple.id) {
           console.log("Fetching atom details for ID:", triple.id);
-          const atomData = await fetchAtomDetails(parseInt(triple.id), endpoint);
+          const atomData = await fetchAtomDetails(
+            parseInt(triple.id),
+            endpoint
+          );
           console.log("Received atom details:", atomData);
           setAtomDetails(atomData);
         }
@@ -83,7 +86,7 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
           </p>
           <p>
             <strong>Vault Shares:</strong>{" "}
-            {formatShares(atomDetails.vault?.totalShares || 0)}
+            {formatShares(atomDetails.vault?.total_shares || 0)}
           </p>
         </>
       )}
