@@ -37,22 +37,22 @@ const GraphVisualization = ({ endpoint }) => {
       const entities = [triple.subject, triple.predicate, triple.object];
 
       entities.forEach((entity) => {
-        if (entity.creatorId) {
+        if (entity.creator_id) {
           if (
             !creatorNodes.find(
-              (node) => node.id === `creator-${entity.creatorId}`
+              (node) => node.id === `creator-${entity.creator_id}`
             )
           ) {
             creatorNodes.push({
-              id: `creator-${entity.creatorId}`,
-              label: `${entity.creatorId}`,
+              id: `creator-${entity.creator_id}`,
+              label: `${entity.creator_id}`,
               type: "creator",
               color: NODE_COLORS.CREATOR,
             });
           }
 
           creatorLinks.push({
-            source: `creator-${entity.creatorId}`,
+            source: `creator-${entity.creator_id}`,
             target: entity.id,
             label: "created",
           });

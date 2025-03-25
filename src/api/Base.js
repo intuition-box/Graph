@@ -2,7 +2,7 @@ import { gql, GraphQLClient } from "graphql-request";
 
 export const ENDPOINTS = {
   base: {
-    url: " https://api.i7n.app/v1/graphql",
+    url: " https://prod.base.intuition-api.com/v1/graphql",
     displayName: "Base Mainnet",
   },
 };
@@ -23,9 +23,9 @@ export const fetchAtomDetails = async (atomId, endpoint = "baseSepolia") => {
         label
         emoji
         type
-        creatorId
+        creator_id
         vault {
-          totalShares
+          total_shares
         }
       }
     }
@@ -53,19 +53,19 @@ export const fetchTriples = async (endpoint = "baseSepolia") => {
         subject {
           label
           id
-          creatorId
+          creator_id
           type
         }
         predicate {
           label
           id
-          creatorId
+          creator_id
           type
         }
         object {
           label
           id
-          creatorId
+          creator_id
           type
         }
       }
@@ -86,23 +86,22 @@ export const fetchTriplesForNode = async (nodeId, endpoint = "baseSepolia") => {
     query Triples($where: triples_bool_exp) {
       triples(where: $where) {
         id
-        label
         subject {
           label
           id
-          creatorId
+          creator_id
           type
         }
         predicate {
           label
           id
-          creatorId
+          creator_id
           type
         }
         object {
           label
           id
-          creatorId
+          creator_id
           type
         }
       }
@@ -112,17 +111,17 @@ export const fetchTriplesForNode = async (nodeId, endpoint = "baseSepolia") => {
     where: {
       _or: [
         {
-          predicateId: {
+          predicate_id: {
             _eq: nodeId,
           },
         },
         {
-          subjectId: {
+          subject_id: {
             _eq: nodeId,
           },
         },
         {
-          objectId: {
+          object_id: {
             _eq: nodeId,
           },
         },
@@ -143,19 +142,19 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
         subject {
           label
           id
-          creatorId
+          creator_id
           type
         }
         predicate {
           label
           id
-          creatorId
+          creator_id
           type
         }
         object {
           label
           id
-          creatorId
+          creator_id
           type
         }
       }
