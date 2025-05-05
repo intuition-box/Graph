@@ -13,7 +13,7 @@ const EndpointSelector = ({ currentEndpoint, onEndpointChange }) => {
         alignItems: "center",
         gap: "10px",
         background: "#444",
-        color: "#fff",
+        color: "black",
         padding: "10px",
         borderRadius: "4px",
         width: "270px",

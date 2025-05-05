@@ -1,15 +1,35 @@
 {
-  "name": "intuition-visualization",
+  "name": "playermap_graph",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "description": "A React library for intuition visualization using force-directed graphs",
+  "author": "Agent",
+  "license": "MIT",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.es.js",
+  "types": "src/index.d.ts",
+  "files": [
+    "dist",
+    "src/index.d.ts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Agent-BossFighters/playermap-graph.git"
+  },
+  "keywords": [
+    "react",
+    "visualization",
+    "force-graph",
+    "d3"
+  ],
   "homepage": "https://graph.i7n.thp-lab.org",
   "dependencies": {
     "d3": "^7.9.0",
     "d3-force-3d": "^3.0.5",
     "graphql": "^16.9.0",
     "graphql-request": "^7.1.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0",
     "react-force-graph": "^1.44.7",
     "react-force-graph-2d": "^1.25.8",
     "react-force-graph-3d": "^1.24.6",
@@ -22,6 +42,8 @@
     "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "build:lib": "vite build",
+    "prepublishOnly": "npm run build:lib",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -43,11 +65,17 @@
       "last 1 safari version"
     ]
   },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
-    "gh-pages": "^6.2.0"
+    "@vitejs/plugin-react": "^4.4.1",
+    "gh-pages": "^6.2.0",
+    "vite": "^5.4.19"
   }
 }
