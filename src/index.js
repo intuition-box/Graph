@@ -1,17 +1,12 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
+// Main components
+export { default as GraphVisualization } from './GraphVisualization.jsx';
+export { default as GraphVR } from './GraphVR.jsx';
+export { default as NodeDetailsSidebar } from './NodeDetailsSidebar.jsx';
+export { default as GraphLegend } from './GraphLegend.jsx';
+export { default as EndpointSelector } from './EndpointSelector.jsx';
+export { default as LoadingAnimation } from './LoadingAnimation.jsx';
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+// Utilities
+export * from './api';
+export * from './graphData';
+export * from './nodeColors';
