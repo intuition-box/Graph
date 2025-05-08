@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
-import { fetchTriples, fetchTriplesForNode } from "./api";
+import { fetchTriples, fetchTriplesForNode, searchTriples } from "./api";
 import { transformToGraphData } from "./graphData";
-import { NODE_COLORS } from "./nodeColors";
+import { NODE_COLORS, getNodeColor } from "./nodeColors";
 import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
@@ -11,7 +11,6 @@ import LoadingAnimation from "./LoadingAnimation";
 
 const GraphVisualization = ({ endpoint }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [viewMode, setViewMode] = useState("2D");
@@ -21,13 +20,52 @@ const GraphVisualization = ({ endpoint }) => {
   const fgRef = useRef();
   const [graphHistory, setGraphHistory] = useState([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
+  const searchTimeoutRef = useRef(null);
 
   // Filtres
   const [subjectFilter, setSubjectFilter] = useState("");
   const [predicateFilter, setPredicateFilter] = useState("");
   const [objectFilter, setObjectFilter] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [shouldSearch, setShouldSearch] = useState(false);
 
-  // Charger les données
+  const enhanceGraphDataWithCreators = useCallback((graphData, triples) => {
+    const creatorNodes = [];
+    const creatorLinks = [];
+
+    triples.forEach((triple) => {
+      const entities = [triple.subject, triple.predicate, triple.object];
+
+      entities.forEach((entity) => {
+        if (entity.creator_id) {
+          if (
+            !creatorNodes.find(
+              (node) => node.id === `creator-${entity.creator_id}`
+            )
+          ) {
+            creatorNodes.push({
+              id: `creator-${entity.creator_id}`,
+              label: `${entity.creator_id}`,
+              type: "creator",
+              color: NODE_COLORS.CREATOR,
+            });
+          }
+
+          creatorLinks.push({
+            source: `creator-${entity.creator_id}`,
+            target: entity.id,
+            label: "created",
+          });
+        }
+      });
+    });
+
+    return {
+      nodes: [...graphData.nodes, ...creatorNodes],
+      links: [...graphData.links, ...creatorLinks],
+    };
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -35,7 +73,6 @@ const GraphVisualization = ({ endpoint }) => {
         const triples = await fetchTriples(endpoint);
         let baseGraphData = transformToGraphData(triples);
 
-        // Ajouter les créateurs si le toggle est actif
         if (showCreators) {
           baseGraphData = enhanceGraphDataWithCreators(baseGraphData, triples);
         }
@@ -50,211 +87,200 @@ const GraphVisualization = ({ endpoint }) => {
     };
 
     loadData();
-  }, [showCreators, endpoint]); // Reload when endpoint changes
+  }, [showCreators, endpoint, enhanceGraphDataWithCreators]);
 
-  const resetGraph = () => {
+  const resetGraph = useCallback(() => {
     setGraphData(initialGraphData);
-  };
-
-  // Fonction pour ajouter les créateurs au graphe
-  const enhanceGraphDataWithCreators = (graphData, triples) => {
-    const creatorNodes = [];
-    const creatorLinks = [];
-
-    triples.forEach((triple) => {
-      const entities = [triple.subject, triple.predicate, triple.object];
-
-      entities.forEach((entity) => {
-        if (entity.creatorId) {
-          // Ajouter un nœud pour le créateur
-          if (
-            !creatorNodes.find(
-              (node) => node.id === `creator-${entity.creatorId}`
-            )
-          ) {
-            creatorNodes.push({
-              id: `creator-${entity.creatorId}`,
-              label: `${entity.creatorId}`,
-              type: "creator",
-              color: NODE_COLORS.CREATOR,
-            });
-          }
-
-          // Ajouter un lien entre l'entité et son créateur
-          creatorLinks.push({
-            source: `creator-${entity.creatorId}`,
-            target: entity.id,
-            label: "created",
-          });
-        }
-      });
-    });
-
-    return {
-      nodes: [...graphData.nodes, ...creatorNodes],
-      links: [...graphData.links, ...creatorLinks],
-    };
-  };
+    setSelectedTriple(null);
+    setSubjectFilter("");
+    setPredicateFilter("");
+    setObjectFilter("");
+    setShouldSearch(false);
+  }, [initialGraphData]);
 
   const handleNodeClick = useCallback(
     async (node) => {
+      console.log("Node clicked:", node);
+      setSelectedTriple(node);
+
       if (fgRef.current) {
         try {
-          // Sauvegarder la position actuelle du nœud
           const nodePosition = {
             x: node.x,
             y: node.y,
-            z: node.z || 0, // En 2D, z sera 0
+            z: node.z || 0,
           };
 
-          // Récupérer les nouveaux triplets
           const filteredTriples = await fetchTriplesForNode(node.id, endpoint);
           const newGraphData = transformToGraphData(filteredTriples);
 
-          // Assigner la position sauvegardée au nœud correspondant dans le nouveau graphe
           const targetNode = newGraphData.nodes.find((n) => n.id === node.id);
           if (targetNode) {
             targetNode.x = nodePosition.x;
             targetNode.y = nodePosition.y;
             if (viewMode === "3D") targetNode.z = nodePosition.z;
 
-            // Fixer le nœud en place pendant l'initialisation du graphe
             targetNode.fx = nodePosition.x;
             targetNode.fy = nodePosition.y;
             if (viewMode === "3D") targetNode.fz = nodePosition.z;
           }
 
-          setSelectedTriple(node);
-
-          // Sauvegarder l'état actuel dans l'historique
           setGraphHistory((prevHistory) => {
             const updatedHistory = prevHistory.slice(
               0,
               currentHistoryIndex + 1
             );
-            updatedHistory.push({ graphData, selectedTriple }); // Ajouter l'état actuel du graphe et de NodeDetailsSidebar
+            updatedHistory.push({ graphData, selectedTriple: node });
             return updatedHistory;
           });
           setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
 
           setGraphData(newGraphData);
         } catch (error) {
-          console.error("Erreur lors de la récupération des triplets :", error);
+          console.error("Error fetching triples:", error);
         }
       }
     },
-    [viewMode, graphData, currentHistoryIndex, endpoint, selectedTriple]
+    [viewMode, graphData, currentHistoryIndex, endpoint]
   );
 
-  // Fit graph to view after initial render
   const handleEngineStop = useCallback(() => {
     if (isInitialLoad && fgRef.current) {
       setIsInitialLoad(false);
     }
   }, [isInitialLoad]);
 
-  // Boutons Précédent et Suivant
-  const goBack = () => {
+  const goBack = useCallback(() => {
     if (currentHistoryIndex > 0) {
       const { graphData, selectedTriple } =
         graphHistory[currentHistoryIndex - 1];
       setGraphData(graphData);
-      setSelectedTriple(selectedTriple); // Récupérer l'état de NodeDetailsSidebar
+      setSelectedTriple(selectedTriple);
       setCurrentHistoryIndex((prevIndex) => prevIndex - 1);
     }
-  };
+  }, [currentHistoryIndex, graphHistory]);
 
-  const goForward = () => {
+  const goForward = useCallback(() => {
     if (currentHistoryIndex < graphHistory.length - 1) {
       const { graphData, selectedTriple } =
         graphHistory[currentHistoryIndex + 1];
       setGraphData(graphData);
-      setSelectedTriple(selectedTriple); // Récupérer l'état de NodeDetailsSidebar
+      setSelectedTriple(selectedTriple);
       setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
     }
-  };
+  }, [currentHistoryIndex, graphHistory]);
 
-  const applyFilters = () => {
-    console.log("Applying filters...");
-    console.log("Subject Filter:", subjectFilter);
-    console.log("Predicate Filter:", predicateFilter);
-    console.log("Object Filter:", objectFilter);
+  const applyFilters = useCallback(async () => {
+    if (!shouldSearch) return;
 
-    // Vérification des liens pour déboguer
-    console.log("Links before filtering:", graphData.links);
-
-    const filteredLinks = graphData.links.filter((link) => {
-      const subjectMatches =
-        !subjectFilter ||
-        (typeof link.source === "string"
-          ? link.source.toLowerCase().includes(subjectFilter.toLowerCase())
-          : link.source?.label
-              ?.toLowerCase()
-              .includes(subjectFilter.toLowerCase()));
-
-      const predicateMatches =
-        !predicateFilter ||
-        (typeof link.label === "string"
-          ? link.label.toLowerCase().includes(predicateFilter.toLowerCase())
-          : false) || // Filtrage sur le prédicat
-        (typeof link.source === "string"
-          ? link.source.toLowerCase().includes(predicateFilter.toLowerCase())
-          : link.source?.label
-              ?.toLowerCase()
-              .includes(predicateFilter.toLowerCase())) || // Filtrage aussi sur le sujet (source)
-        (typeof link.target === "string"
-          ? link.target.toLowerCase().includes(predicateFilter.toLowerCase())
-          : link.target?.label
-              ?.toLowerCase()
-              .includes(predicateFilter.toLowerCase())); // Filtrage aussi sur l'objet (target)
-
-      const objectMatches =
-        !objectFilter ||
-        (typeof link.target === "string"
-          ? link.target.toLowerCase().includes(objectFilter.toLowerCase())
-          : link.target?.label
-              ?.toLowerCase()
-              .includes(objectFilter.toLowerCase()));
-
-      return subjectMatches && predicateMatches && objectMatches;
+    console.log("Applying filters:", {
+      subjectFilter,
+      predicateFilter,
+      objectFilter,
     });
 
-    // Déboguer les liens filtrés
-    console.log("Filtered Links:", filteredLinks);
+    if (!subjectFilter && !predicateFilter && !objectFilter) {
+      resetGraph();
+      return;
+    }
 
-    // Identifiez les nœuds impliqués dans les liens filtrés
-    const filteredNodeIds = new Set(
-      filteredLinks.flatMap((link) => [
-        typeof link.source === "string" ? link.source : link.source?.id,
-        typeof link.target === "string" ? link.target : link.target?.id,
-      ])
-    );
+    setIsSearching(true);
+    try {
+      const filters = {
+        subject: subjectFilter,
+        predicate: predicateFilter,
+        object: objectFilter,
+      };
 
-    // Filtrer les nœuds pour ne garder que ceux qui sont impliqués dans les liens filtrés
-    const filteredNodes = graphData.nodes.filter((node) =>
-      filteredNodeIds.has(node.id)
-    );
+      console.log("Sending search request with filters:", filters);
+      const searchResults = await searchTriples(filters, endpoint);
+      console.log("Search results:", searchResults);
 
-    // Déboguer les nœuds filtrés
-    console.log("Filtered Nodes:", filteredNodes);
+      if (!searchResults || searchResults.length === 0) {
+        console.log("No results found");
+        setGraphData({ nodes: [], links: [] });
+        return;
+      }
 
-    // Mettre à jour l'état avec les données filtrées
-    setGraphData({ nodes: filteredNodes, links: filteredLinks });
-  };
+      const newGraphData = transformToGraphData(searchResults);
+      console.log("Transformed graph data:", newGraphData);
 
-  const resetFilters = () => {
-    setSubjectFilter("");
-    setPredicateFilter("");
-    setObjectFilter("");
+      if (showCreators) {
+        const enhancedData = enhanceGraphDataWithCreators(
+          newGraphData,
+          searchResults
+        );
+        console.log("Enhanced graph data with creators:", enhancedData);
+        setGraphData(enhancedData);
+      } else {
+        setGraphData(newGraphData);
+      }
 
-    if (graphHistory.length)
-      setGraphData(graphHistory[graphHistory.length - 1].graphData);
-    else setGraphData(initialGraphData);
-  };
+      setGraphHistory((prevHistory) => {
+        const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+        updatedHistory.push({ graphData: newGraphData, selectedTriple: null });
+        return updatedHistory;
+      });
+      setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
+    } catch (error) {
+      console.error("Error searching triples:", error);
+    } finally {
+      setIsSearching(false);
+      setShouldSearch(false);
+    }
+  }, [
+    subjectFilter,
+    predicateFilter,
+    objectFilter,
+    endpoint,
+    showCreators,
+    enhanceGraphDataWithCreators,
+    resetGraph,
+    currentHistoryIndex,
+    shouldSearch,
+  ]);
+
+  // Handle search input changes
+  const handleSearchInput = useCallback((type, value) => {
+    console.log(`Search input changed - type: ${type}, value: ${value}`);
+
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Update the appropriate filter
+    switch (type) {
+      case "subject":
+        setSubjectFilter(value);
+        break;
+      case "predicate":
+        setPredicateFilter(value);
+        break;
+      case "object":
+        setObjectFilter(value);
+        break;
+      default:
+        break;
+    }
+
+    // Set a new timeout
+    searchTimeoutRef.current = setTimeout(() => {
+      setShouldSearch(true);
+    }, 500);
+  }, []);
+
+  // Effect for handling search
+  useEffect(() => {
+    if (shouldSearch) {
+      applyFilters();
+    }
+  }, [shouldSearch, applyFilters]);
 
   return (
     <div>
-      {isLoading && <LoadingAnimation />}
+      {(isLoading || isSearching) && <LoadingAnimation />}
+      {/* BOUTONS DE NAVIGATION AGENT */}
       <div
         style={{
           position: "absolute",
@@ -285,7 +311,7 @@ const GraphVisualization = ({ endpoint }) => {
         </button>
       </div>
 
-      {/* Options en haut à gauche */}
+      {/* NAVBAR AGENT */}
       <div
         className="agent-navbar"
         style={{
@@ -315,37 +341,75 @@ const GraphVisualization = ({ endpoint }) => {
             style={{ marginLeft: "8px" }}
           />
         </label>
-        <input
-          type="text"
-          value={subjectFilter}
-          onChange={(e) => {
-            setSubjectFilter(e.target.value);
-            applyFilters();
-          }}
-          placeholder="Subject"
-        />
-        <input
-          type="text"
-          value={predicateFilter}
-          onChange={(e) => {
-            setPredicateFilter(e.target.value);
-            applyFilters();
-          }}
-          placeholder="Predicate"
-        />
-        <input
-          type="text"
-          value={objectFilter}
-          onChange={(e) => {
-            setObjectFilter(e.target.value);
-            applyFilters();
-          }}
-          placeholder="Object"
-        />
-        <button onClick={resetFilters}>reset</button>
+        {/* Filtres alignés horizontalement sous l'endpoint */}
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <input
+            className="agent-navbar"
+            type="text"
+            value={subjectFilter}
+            onChange={(e) => {
+              setSubjectFilter(e.target.value);
+              applyFilters();
+            }}
+            placeholder="Subject"
+            style={{
+              padding: "5px",
+              borderRadius: "4px",
+              border: "1px solid #ffd32a",
+              fontSize: "14px",
+              width: "100px",
+              background: "#232326",
+              color: "#fff",
+            }}
+          />
+          <input
+            className="agent-navbar"
+            type="text"
+            value={predicateFilter}
+            onChange={(e) => {
+              setPredicateFilter(e.target.value);
+              applyFilters();
+            }}
+            placeholder="Predicate"
+            style={{
+              padding: "5px",
+              borderRadius: "4px",
+              border: "1px solid #ffd32a",
+              fontSize: "14px",
+              width: "100px",
+              background: "#232326",
+              color: "#fff",
+            }}
+          />
+          <input
+            className="agent-navbar"
+            type="text"
+            value={objectFilter}
+            onChange={(e) => {
+              setObjectFilter(e.target.value);
+              applyFilters();
+            }}
+            placeholder="Object"
+            style={{
+              padding: "5px",
+              borderRadius: "4px",
+              border: "1px solid #ffd32a",
+              fontSize: "14px",
+              width: "100px",
+              background: "#232326",
+              color: "#fff",
+            }}
+          />
+          <button
+            className="agent-btn"
+            onClick={resetGraph}
+            style={{ width: "auto", padding: "6px 12px" }}
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
-      {/* Graphique 2D */}
       {viewMode === "2D" && (
         <ForceGraph2D
           ref={(el) => (fgRef.current = el)}
@@ -355,12 +419,10 @@ const GraphVisualization = ({ endpoint }) => {
             const fontSize = 12 / globalScale;
             ctx.font = `${fontSize}px Sans-Serif`;
 
-            // Measure text width for background
             const textWidth = ctx.measureText(label).width;
-            const padding = 10 / globalScale; // Scale padding with zoom
-            const radius = 5 / globalScale; // Scale border radius with zoom
+            const padding = 10 / globalScale;
+            const radius = 5 / globalScale;
 
-            // Draw rounded rectangle backgrwound
             ctx.fillStyle = node.color + "CC";
             const x = node.x - textWidth / 2 - padding;
             const y = node.y - fontSize / 2 - padding;
@@ -368,7 +430,6 @@ const GraphVisualization = ({ endpoint }) => {
             const height = fontSize + padding * 2;
             const bckgDimensions = [width, height];
 
-            // Simple rounded rect using arcs (more performant than complex paths)
             ctx.beginPath();
             ctx.arc(x + radius, y + radius, radius, Math.PI, 1.5 * Math.PI);
             ctx.arc(
@@ -395,13 +456,12 @@ const GraphVisualization = ({ endpoint }) => {
             ctx.closePath();
             ctx.fill();
 
-            // Draw text
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(label, node.x, node.y);
 
-            node.__bckgDimensions = bckgDimensions; // to re-use in nodePointerAreaPaint
+            node.__bckgDimensions = bckgDimensions;
           }}
           nodePointerAreaPaint={(node, color, ctx) => {
             ctx.fillStyle = color;
@@ -413,7 +473,7 @@ const GraphVisualization = ({ endpoint }) => {
                 ...bckgDimensions
               );
           }}
-          linkColor={() => "#666"}
+          linkColor={() => "rgba(255, 211, 42, 0.15)"}
           linkDirectionalParticles={1}
           linkDirectionalParticleSpeed={0.02}
           linkDirectionalParticleColor={() => "#fff"}
@@ -423,7 +483,6 @@ const GraphVisualization = ({ endpoint }) => {
         />
       )}
 
-      {/* Graphique 3D */}
       {viewMode === "3D" && (
         <ForceGraph3D
           ref={(el) => (fgRef.current = el)}
@@ -431,14 +490,14 @@ const GraphVisualization = ({ endpoint }) => {
           controlType="fly"
           nodeLabel="label"
           onNodeClick={handleNodeClick}
-          linkColor={() => "#666"}
+          linkColor={() => "rgba(255, 211, 42, 0.15)"}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           nodeAutoColorBy="type"
           nodeThreeObject={(node) => {
             const sprite = new SpriteText(node.label || "");
+            sprite.backgroundColor = getNodeColor(node.type) + "CC";
             sprite.borderRadius = 1;
-            sprite.backgroundColor = node.color + "CC";
             sprite.padding = 1;
             sprite.color = "#fff";
             sprite.textHeight = 2;
@@ -448,7 +507,6 @@ const GraphVisualization = ({ endpoint }) => {
         />
       )}
 
-      {/* Mode VR */}
       {viewMode === "VR" && (
         <GraphVR
           graphData={graphData}
@@ -459,14 +517,15 @@ const GraphVisualization = ({ endpoint }) => {
         />
       )}
 
-      {/* Graph legend */}
       <GraphLegend showCreators={showCreators} />
 
-      {/* Barre latérale de détails */}
-      <NodeDetailsSidebar
-        triple={selectedTriple}
-        onClose={() => setSelectedTriple(null)}
-      />
+      {selectedTriple && (
+        <NodeDetailsSidebar
+          triple={selectedTriple}
+          endpoint={endpoint}
+          onClose={() => setSelectedTriple(null)}
+        />
+      )}
     </div>
   );
 };

@@ -2,47 +2,63 @@ import React, { useEffect, useState } from "react";
 import { fetchTriples, fetchAtomDetails } from "./api";
 import "./NodeDetailsSidebar.css";
 
-const NodeDetailsSidebar = ({ triple, onClose }) => {
+const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
   const [additionalData, setAdditionalData] = useState(null);
   const [atomDetails, setAtomDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (triple) {
-      setLoading(true);
-      setError(null);
+    if (!triple) return; // Early return if no triple is provided
 
-      const fetchData = async () => {
-        try {
-          const response = await fetchTriples();
-          const filteredData = response.filter(
-            (item) =>
-              item.id === triple.id ||
-              item.subject.id === triple.id ||
-              item.predicate.id === triple.id ||
-              item.object.id === triple.id
+    setLoading(true);
+    setError(null);
+    setAtomDetails(null); // Reset atom details when triple changes
+
+    const fetchData = async () => {
+      try {
+        // Log the incoming triple for debugging
+        console.log("Received triple:", triple);
+
+        const response = await fetchTriples(endpoint);
+        const filteredData = response.filter(
+          (item) =>
+            item.id === triple.id ||
+            item.subject?.id === triple.id ||
+            item.predicate?.id === triple.id ||
+            item.object?.id === triple.id
+        );
+        setAdditionalData(filteredData);
+
+        if (triple.id) {
+          console.log("Fetching atom details for ID:", triple.id);
+          const atomData = await fetchAtomDetails(
+            parseInt(triple.id),
+            endpoint
           );
-          setAdditionalData(filteredData);
-
-          if (triple.id) {
-            const atomData = await fetchAtomDetails(triple.id);
-            setAtomDetails(atomData);
-          }
-        } catch (err) {
-          setError("Failed to fetch data");
-        } finally {
-          setLoading(false);
+          console.log("Received atom details:", atomData);
+          setAtomDetails(atomData);
         }
-      };
+      } catch (err) {
+        console.error("Error fetching sidebar data:", err);
+        setError("Failed to fetch data");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      fetchData();
-    }
-  }, [triple]);
+    fetchData();
+  }, [triple, endpoint]);
 
   const formatShares = (shares) => `${(shares / 1e18).toFixed(4)} ETH`;
 
-  if (!triple) return null;
+  // If no triple is provided, don't render anything
+  if (!triple) {
+    console.log("No triple provided to sidebar");
+    return null;
+  }
+
+  console.log("Rendering sidebar with triple:", triple);
 
   return (
     <div className="node-details-sidebar">
@@ -70,7 +86,7 @@ const NodeDetailsSidebar = ({ triple, onClose }) => {
           </p>
           <p>
             <strong>Vault Shares:</strong>{" "}
-            {formatShares(atomDetails.vault?.totalShares || 0)}
+            {formatShares(atomDetails.vault?.total_shares || 0)}
           </p>
         </>
       )}
@@ -81,9 +97,9 @@ const NodeDetailsSidebar = ({ triple, onClose }) => {
           <ul>
             {additionalData.map((item) => (
               <li key={item.id}>
-                <strong>Subject:</strong> {item.subject.label} |{" "}
-                <strong>Predicate:</strong> {item.predicate.label} |{" "}
-                <strong>Object:</strong> {item.object.label}
+                <strong>Subject:</strong> {item.subject?.label} |{" "}
+                <strong>Predicate:</strong> {item.predicate?.label} |{" "}
+                <strong>Object:</strong> {item.object?.label}
               </li>
             ))}
           </ul>
