@@ -8,12 +8,10 @@
 }
 
 .App-header {
-  background-color: #282c34;
   padding: 1rem;
   color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   z-index: 1;
-  position : fixed;
+  position: fixed;
   width: 100%;
 }
 
@@ -57,5 +55,125 @@ canvas {
   cursor: "pointer";
   font-size: "14px";
   height: 30px;
-  border:none;
+  border: none;
+}
+
+.agent-btn {
+  background: #ffd32a;
+  color: #18181b;
+  font-weight: bold;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+  margin-bottom: 8px;
+  width: 150px;
+  display: block;
+}
+.agent-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.agent-btn:hover:not(:disabled) {
+  background: #ffe066;
+  color: #18181b;
+  transform: translateY(-2px) scale(1.03);
+}
+
+.agent-navbar {
+  background: #18181b;
+  border-radius: 10px;
+  border: 2px solid #ffd32a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #ffd32a;
+}
+
+.agent-navbar label {
+  color: #ffd32a;
+  font-weight: bold;
+  margin-right: 6px;
+}
+
+.agent-navbar select,
+.agent-navbar input[type="text"] {
+  background: #232326;
+  color: #fff;
+  border: 1px solid #ffd32a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 15px;
+  margin-right: 8px;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.agent-navbar select:focus,
+.agent-navbar input[type="text"]:focus {
+  outline: none;
+  border-color: #ffd32a;
+  box-shadow: 0 0 0 2px #ffd32a33;
+}
+
+.agent-navbar button {
+  background: #ffd32a;
+  color: #18181b;
+  font-weight: bold;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
+}
+.agent-navbar button:hover {
+  background: #ffe066;
+  color: #18181b;
+  transform: translateY(-2px) scale(1.03);
+}
+
+.agent-legend {
+  background: #18181b;
+  border: 2px solid #ffd32a;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: #ffd32a;
+  padding: 14px 20px 10px 20px;
+  font-size: 14px;
+  min-width: 160px;
+}
+
+.agent-legend h4 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #ffd32a;
+  font-weight: bold;
+}
+
+.agent-legend ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.agent-legend li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  color: #fff;
+}
+
+.agent-legend span {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 10px;
+  border: 1.5px solid #ffd32a;
 }

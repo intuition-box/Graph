@@ -255,88 +255,58 @@ const GraphVisualization = ({ endpoint }) => {
   return (
     <div>
       {isLoading && <LoadingAnimation />}
-      <button
-        className="navigation-button"
-        onClick={resetGraph}
+      <div
         style={{
           position: "absolute",
           top: "75px",
           left: "10px",
           zIndex: 50,
-          width: "143px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
         }}
       >
-        Return to initial graph
-      </button>
-
-      <button
-        className="navigation-button"
-        onClick={goBack}
-        style={{
-          position: "absolute",
-          top: "110px",
-          left: "10px",
-          width: "70px",
-          zIndex: 50,
-        }}
-        disabled={currentHistoryIndex <= 0}
-      >
-        Previous
-      </button>
-      <button
-        className="navigation-button"
-        onClick={goForward}
-        style={{
-          position: "absolute",
-          top: "110px",
-          left: "83px",
-          width: "70px",
-          zIndex: 50,
-        }}
-        disabled={currentHistoryIndex >= graphHistory.length - 1}
-      >
-        Next
-      </button>
+        <button className="agent-btn" onClick={resetGraph} disabled={false}>
+          Return to graph
+        </button>
+        <button
+          className="agent-btn"
+          onClick={goBack}
+          disabled={currentHistoryIndex <= 0}
+        >
+          Previous
+        </button>
+        <button
+          className="agent-btn"
+          onClick={goForward}
+          disabled={currentHistoryIndex >= graphHistory.length - 1}
+        >
+          Next
+        </button>
+      </div>
 
       {/* Options en haut à gauche */}
       <div
+        className="agent-navbar"
         style={{
           position: "absolute",
           top: "10px",
           right: "10px",
           zIndex: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          background: "#444",
-          color: "#fff",
-          padding: "10px",
-          borderRadius: "4px",
         }}
       >
-        {/* Toggle pour le mode de vue */}
-        <label htmlFor="viewMode" style={{ fontSize: "14px" }}>
-          View Mode:
-        </label>
+        <label htmlFor="viewMode">View Mode:</label>
         <select
           id="viewMode"
           value={viewMode}
           onChange={(e) => setViewMode(e.target.value)}
-          style={{
-            padding: "5px",
-            borderRadius: "4px",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
         >
           <option value="2D">2D</option>
           <option value="3D">3D</option>
           <option value="VR">VR</option>
         </select>
 
-        {/* Toggle pour afficher les créateurs */}
-        <label style={{ fontSize: "14px", marginLeft: "10px" }}>
+        <label style={{ marginLeft: "10px" }}>
           Show Creators
           <input
             type="checkbox"
@@ -345,58 +315,34 @@ const GraphVisualization = ({ endpoint }) => {
             style={{ marginLeft: "8px" }}
           />
         </label>
-        {/* Filtres alignés horizontalement sous l'endpoint */}
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <input
-            type="text"
-            value={subjectFilter}
-            onChange={(e) => {
-              setSubjectFilter(e.target.value);
-              applyFilters();
-            }}
-            placeholder="Subject"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-          <input
-            type="text"
-            value={predicateFilter}
-            onChange={(e) => {
-              setPredicateFilter(e.target.value);
-              applyFilters();
-            }}
-            placeholder="Predicate"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-          <input
-            type="text"
-            value={objectFilter}
-            onChange={(e) => {
-              setObjectFilter(e.target.value);
-              applyFilters();
-            }}
-            placeholder="Object"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-          <button onClick={resetFilters}>reset</button>
-        </div>
+        <input
+          type="text"
+          value={subjectFilter}
+          onChange={(e) => {
+            setSubjectFilter(e.target.value);
+            applyFilters();
+          }}
+          placeholder="Subject"
+        />
+        <input
+          type="text"
+          value={predicateFilter}
+          onChange={(e) => {
+            setPredicateFilter(e.target.value);
+            applyFilters();
+          }}
+          placeholder="Predicate"
+        />
+        <input
+          type="text"
+          value={objectFilter}
+          onChange={(e) => {
+            setObjectFilter(e.target.value);
+            applyFilters();
+          }}
+          placeholder="Object"
+        />
+        <button onClick={resetFilters}>reset</button>
       </div>
 
       {/* Graphique 2D */}
