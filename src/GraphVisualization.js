@@ -1,317 +1,72 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
-import SpriteText from "three-spritetext";
-import { fetchTriples, fetchTriplesForNode, searchTriples } from "./api";
-import { transformToGraphData } from "./graphData";
-import { NODE_COLORS, getNodeColor } from "./nodeColors";
+import React, { useEffect, useRef } from "react";
 import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
+import FilterBar from "./FilterBar";
+import Graph2D from "./Graph2D";
+import Graph3D from "./Graph3D";
+import NavigationBar from "./NavigationBar";
+import ViewModeSelector from "./ViewModeSelector";
+import { useGraphState } from "./hooks/useGraphState";
 
 const GraphVisualization = ({ endpoint }) => {
-  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-  const [initialGraphData, setInitialGraphData] = useState(null);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [viewMode, setViewMode] = useState("2D");
-  const [selectedTriple, setSelectedTriple] = useState(null);
-  const [showCreators, setShowCreators] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const fgRef = useRef();
-  const [graphHistory, setGraphHistory] = useState([]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
-  const searchTimeoutRef = useRef(null);
+  const [viewMode, setViewMode] = React.useState("2D");
 
-  // Filtres
-  const [subjectFilter, setSubjectFilter] = useState("");
-  const [predicateFilter, setPredicateFilter] = useState("");
-  const [objectFilter, setObjectFilter] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [shouldSearch, setShouldSearch] = useState(false);
-
-  const enhanceGraphDataWithCreators = useCallback((graphData, triples) => {
-    const creatorNodes = [];
-    const creatorLinks = [];
-
-    triples.forEach((triple) => {
-      const entities = [triple.subject, triple.predicate, triple.object];
-
-      entities.forEach((entity) => {
-        if (entity.creator_id) {
-          if (
-            !creatorNodes.find(
-              (node) => node.id === `creator-${entity.creator_id}`
-            )
-          ) {
-            creatorNodes.push({
-              id: `creator-${entity.creator_id}`,
-              label: `${entity.creator_id}`,
-              type: "creator",
-              color: NODE_COLORS.CREATOR,
-            });
-          }
-
-          creatorLinks.push({
-            source: `creator-${entity.creator_id}`,
-            target: entity.id,
-            label: "created",
-          });
-        }
-      });
-    });
-
-    return {
-      nodes: [...graphData.nodes, ...creatorNodes],
-      links: [...graphData.links, ...creatorLinks],
-    };
-  }, []);
-
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const triples = await fetchTriples(endpoint);
-        let baseGraphData = transformToGraphData(triples);
-
-        if (showCreators) {
-          baseGraphData = enhanceGraphDataWithCreators(baseGraphData, triples);
-        }
-
-        setGraphData(baseGraphData);
-        setInitialGraphData(baseGraphData);
-      } catch (error) {
-        console.error("Error loading graph data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [showCreators, endpoint, enhanceGraphDataWithCreators]);
-
-  const resetGraph = useCallback(() => {
-    setGraphData(initialGraphData);
-    setSelectedTriple(null);
-    setSubjectFilter("");
-    setPredicateFilter("");
-    setObjectFilter("");
-    setShouldSearch(false);
-  }, [initialGraphData]);
-
-  const handleNodeClick = useCallback(
-    async (node) => {
-      console.log("Node clicked:", node);
-      setSelectedTriple(node);
-
-      if (fgRef.current) {
-        try {
-          const nodePosition = {
-            x: node.x,
-            y: node.y,
-            z: node.z || 0,
-          };
-
-          const filteredTriples = await fetchTriplesForNode(node.id, endpoint);
-          const newGraphData = transformToGraphData(filteredTriples);
-
-          const targetNode = newGraphData.nodes.find((n) => n.id === node.id);
-          if (targetNode) {
-            targetNode.x = nodePosition.x;
-            targetNode.y = nodePosition.y;
-            if (viewMode === "3D") targetNode.z = nodePosition.z;
-
-            targetNode.fx = nodePosition.x;
-            targetNode.fy = nodePosition.y;
-            if (viewMode === "3D") targetNode.fz = nodePosition.z;
-          }
-
-          setGraphHistory((prevHistory) => {
-            const updatedHistory = prevHistory.slice(
-              0,
-              currentHistoryIndex + 1
-            );
-            updatedHistory.push({ graphData, selectedTriple: node });
-            return updatedHistory;
-          });
-          setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-
-          setGraphData(newGraphData);
-        } catch (error) {
-          console.error("Error fetching triples:", error);
-        }
-      }
-    },
-    [viewMode, graphData, currentHistoryIndex, endpoint]
-  );
-
-  const handleEngineStop = useCallback(() => {
-    if (isInitialLoad && fgRef.current) {
-      setIsInitialLoad(false);
-    }
-  }, [isInitialLoad]);
-
-  const goBack = useCallback(() => {
-    if (currentHistoryIndex > 0) {
-      const { graphData, selectedTriple } =
-        graphHistory[currentHistoryIndex - 1];
-      setGraphData(graphData);
-      setSelectedTriple(selectedTriple);
-      setCurrentHistoryIndex((prevIndex) => prevIndex - 1);
-    }
-  }, [currentHistoryIndex, graphHistory]);
-
-  const goForward = useCallback(() => {
-    if (currentHistoryIndex < graphHistory.length - 1) {
-      const { graphData, selectedTriple } =
-        graphHistory[currentHistoryIndex + 1];
-      setGraphData(graphData);
-      setSelectedTriple(selectedTriple);
-      setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-    }
-  }, [currentHistoryIndex, graphHistory]);
-
-  const applyFilters = useCallback(async () => {
-    if (!shouldSearch) return;
-
-    console.log("Applying filters:", {
-      subjectFilter,
-      predicateFilter,
-      objectFilter,
-    });
-
-    if (!subjectFilter && !predicateFilter && !objectFilter) {
-      resetGraph();
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const filters = {
-        subject: subjectFilter,
-        predicate: predicateFilter,
-        object: objectFilter,
-      };
-
-      console.log("Sending search request with filters:", filters);
-      const searchResults = await searchTriples(filters, endpoint);
-      console.log("Search results:", searchResults);
-
-      if (!searchResults || searchResults.length === 0) {
-        console.log("No results found");
-        setGraphData({ nodes: [], links: [] });
-        return;
-      }
-
-      const newGraphData = transformToGraphData(searchResults);
-      console.log("Transformed graph data:", newGraphData);
-
-      if (showCreators) {
-        const enhancedData = enhanceGraphDataWithCreators(
-          newGraphData,
-          searchResults
-        );
-        console.log("Enhanced graph data with creators:", enhancedData);
-        setGraphData(enhancedData);
-      } else {
-        setGraphData(newGraphData);
-      }
-
-      setGraphHistory((prevHistory) => {
-        const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
-        updatedHistory.push({ graphData: newGraphData, selectedTriple: null });
-        return updatedHistory;
-      });
-      setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-    } catch (error) {
-      console.error("Error searching triples:", error);
-    } finally {
-      setIsSearching(false);
-      setShouldSearch(false);
-    }
-  }, [
+  const {
+    graphData,
+    isInitialLoad,
+    selectedTriple,
+    showCreators,
+    isLoading,
+    isSearching,
     subjectFilter,
     predicateFilter,
     objectFilter,
-    endpoint,
-    showCreators,
-    enhanceGraphDataWithCreators,
-    resetGraph,
-    currentHistoryIndex,
     shouldSearch,
-  ]);
+    canGoBack,
+    canGoForward,
+    setShowCreators,
+    setSelectedTriple,
+    setIsInitialLoad,
+    loadInitialData,
+    resetGraph,
+    handleNodeClick,
+    handleFilterChange,
+    applyFilters,
+    goBack,
+    goForward,
+  } = useGraphState(endpoint);
 
-  // Handle search input changes
-  const handleSearchInput = useCallback((type, value) => {
-    console.log(`Search input changed - type: ${type}, value: ${value}`);
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
-    // Clear any existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    // Update the appropriate filter
-    switch (type) {
-      case "subject":
-        setSubjectFilter(value);
-        break;
-      case "predicate":
-        setPredicateFilter(value);
-        break;
-      case "object":
-        setObjectFilter(value);
-        break;
-      default:
-        break;
-    }
-
-    // Set a new timeout
-    searchTimeoutRef.current = setTimeout(() => {
-      setShouldSearch(true);
-    }, 500);
-  }, []);
-
-  // Effect for handling search
   useEffect(() => {
     if (shouldSearch) {
       applyFilters();
     }
   }, [shouldSearch, applyFilters]);
 
+  const handleEngineStop = () => {
+    if (isInitialLoad && fgRef.current) {
+      setIsInitialLoad(false);
+    }
+  };
+
   return (
     <div>
       {(isLoading || isSearching) && <LoadingAnimation />}
-      {/* BOUTONS DE NAVIGATION AGENT */}
-      <div
-        style={{
-          position: "absolute",
-          top: "75px",
-          left: "10px",
-          zIndex: 50,
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
-        }}
-      >
-        <button className="agent-btn" onClick={resetGraph} disabled={false}>
-          Return to graph
-        </button>
-        <button
-          className="agent-btn"
-          onClick={goBack}
-          disabled={currentHistoryIndex <= 0}
-        >
-          Previous
-        </button>
-        <button
-          className="agent-btn"
-          onClick={goForward}
-          disabled={currentHistoryIndex >= graphHistory.length - 1}
-        >
-          Next
-        </button>
-      </div>
 
-      {/* NAVBAR AGENT */}
+      <NavigationBar
+        onReset={resetGraph}
+        onBack={goBack}
+        onForward={goForward}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+      />
+
       <div
         className="agent-navbar"
         style={{
@@ -321,196 +76,44 @@ const GraphVisualization = ({ endpoint }) => {
           zIndex: 10,
         }}
       >
-        <label htmlFor="viewMode">View Mode:</label>
-        <select
-          id="viewMode"
-          value={viewMode}
-          onChange={(e) => setViewMode(e.target.value)}
-        >
-          <option value="2D">2D</option>
-          <option value="3D">3D</option>
-          <option value="VR">VR</option>
-        </select>
+        <ViewModeSelector
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          showCreators={showCreators}
+          onShowCreatorsChange={setShowCreators}
+        />
 
-        <label style={{ marginLeft: "10px" }}>
-          Show Creators
-          <input
-            type="checkbox"
-            checked={showCreators}
-            onChange={(e) => setShowCreators(e.target.checked)}
-            style={{ marginLeft: "8px" }}
-          />
-        </label>
-        {/* Filtres alignés horizontalement sous l'endpoint */}
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <input
-            className="agent-navbar"
-            type="text"
-            value={subjectFilter}
-            onChange={(e) => {
-              setSubjectFilter(e.target.value);
-              applyFilters();
-            }}
-            placeholder="Subject"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ffd32a",
-              fontSize: "14px",
-              width: "100px",
-              background: "#232326",
-              color: "#fff",
-            }}
-          />
-          <input
-            className="agent-navbar"
-            type="text"
-            value={predicateFilter}
-            onChange={(e) => {
-              setPredicateFilter(e.target.value);
-              applyFilters();
-            }}
-            placeholder="Predicate"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ffd32a",
-              fontSize: "14px",
-              width: "100px",
-              background: "#232326",
-              color: "#fff",
-            }}
-          />
-          <input
-            className="agent-navbar"
-            type="text"
-            value={objectFilter}
-            onChange={(e) => {
-              setObjectFilter(e.target.value);
-              applyFilters();
-            }}
-            placeholder="Object"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ffd32a",
-              fontSize: "14px",
-              width: "100px",
-              background: "#232326",
-              color: "#fff",
-            }}
-          />
-          <button
-            className="agent-btn"
-            onClick={resetGraph}
-            style={{ width: "auto", padding: "6px 12px" }}
-          >
-            Reset
-          </button>
-        </div>
+        <FilterBar
+          subjectFilter={subjectFilter}
+          predicateFilter={predicateFilter}
+          objectFilter={objectFilter}
+          onFilterChange={handleFilterChange}
+          onReset={resetGraph}
+        />
       </div>
 
       {viewMode === "2D" && (
-        <ForceGraph2D
-          ref={(el) => (fgRef.current = el)}
+        <Graph2D
           graphData={graphData}
-          nodeCanvasObject={(node, ctx, globalScale) => {
-            const label = node.label || "";
-            const fontSize = 12 / globalScale;
-            ctx.font = `${fontSize}px Sans-Serif`;
-
-            const textWidth = ctx.measureText(label).width;
-            const padding = 10 / globalScale;
-            const radius = 5 / globalScale;
-
-            ctx.fillStyle = node.color + "CC";
-            const x = node.x - textWidth / 2 - padding;
-            const y = node.y - fontSize / 2 - padding;
-            const width = textWidth + padding * 2;
-            const height = fontSize + padding * 2;
-            const bckgDimensions = [width, height];
-
-            ctx.beginPath();
-            ctx.arc(x + radius, y + radius, radius, Math.PI, 1.5 * Math.PI);
-            ctx.arc(
-              x + width - radius,
-              y + radius,
-              radius,
-              1.5 * Math.PI,
-              2 * Math.PI
-            );
-            ctx.arc(
-              x + width - radius,
-              y + height - radius,
-              radius,
-              0,
-              0.5 * Math.PI
-            );
-            ctx.arc(
-              x + radius,
-              y + height - radius,
-              radius,
-              0.5 * Math.PI,
-              Math.PI
-            );
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.fillStyle = "#fff";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(label, node.x, node.y);
-
-            node.__bckgDimensions = bckgDimensions;
-          }}
-          nodePointerAreaPaint={(node, color, ctx) => {
-            ctx.fillStyle = color;
-            const bckgDimensions = node.__bckgDimensions;
-            bckgDimensions &&
-              ctx.fillRect(
-                node.x - bckgDimensions[0] / 2,
-                node.y - bckgDimensions[1] / 2,
-                ...bckgDimensions
-              );
-          }}
-          linkColor={() => "rgba(255, 211, 42, 0.15)"}
-          linkDirectionalParticles={1}
-          linkDirectionalParticleSpeed={0.02}
-          linkDirectionalParticleColor={() => "#fff"}
-          nodeAutoColorBy="type"
-          onNodeClick={handleNodeClick}
+          onNodeClick={(node) => handleNodeClick(node, fgRef, viewMode)}
           onEngineStop={handleEngineStop}
+          fgRef={fgRef}
         />
       )}
 
       {viewMode === "3D" && (
-        <ForceGraph3D
-          ref={(el) => (fgRef.current = el)}
+        <Graph3D
           graphData={graphData}
-          controlType="fly"
-          nodeLabel="label"
-          onNodeClick={handleNodeClick}
-          linkColor={() => "rgba(255, 211, 42, 0.15)"}
-          linkDirectionalParticles={2}
-          linkDirectionalParticleSpeed={0.005}
-          nodeAutoColorBy="type"
-          nodeThreeObject={(node) => {
-            const sprite = new SpriteText(node.label || "");
-            sprite.backgroundColor = getNodeColor(node.type) + "CC";
-            sprite.borderRadius = 1;
-            sprite.padding = 1;
-            sprite.color = "#fff";
-            sprite.textHeight = 2;
-            return sprite;
-          }}
+          onNodeClick={(node) => handleNodeClick(node, fgRef, viewMode)}
           onEngineStop={handleEngineStop}
+          fgRef={fgRef}
         />
       )}
 
       {viewMode === "VR" && (
         <GraphVR
           graphData={graphData}
-          onNodeClick={handleNodeClick}
+          onNodeClick={(node) => handleNodeClick(node, fgRef, viewMode)}
           onBack={goBack}
           onForward={goForward}
           selectedTriple={selectedTriple}
