@@ -58,9 +58,20 @@ const FilterBar = ({
         }}
       />
       <button
-        className="agent-btn"
+        style={{
+          background: "#232326",
+          color: "#ffd32a",
+          border: "2px solid #ffd32a",
+          borderRadius: 12,
+          width: 120,
+          height: 40,
+          fontSize: 15,
+          fontWeight: "bold",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+          cursor: "pointer",
+          textTransform: "uppercase",
+        }}
         onClick={onReset}
-        style={{ width: "auto", padding: "6px 12px" }}
       >
         Reset
       </button>

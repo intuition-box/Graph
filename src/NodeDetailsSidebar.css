@@ -3,31 +3,41 @@
   position: fixed;
   top: 80px;
   right: 20px;
-  background: rgba(0, 0, 0, 0.7);
+  background: #18181b;
   padding: 20px;
   width: 350px;
   border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.8);
+  border: 2px solid #ffd32a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  color: #fff;
+  color: #ffd32a;
   overflow-y: auto;
 }
 
 /* Titres et sous-titres */
-.node-details-sidebar h2 {
-  color: #f4f4f4;
+.node-details-sidebar h2,
+.node-details-sidebar h4 {
+  color: #ffd32a;
   margin-bottom: 15px;
+  font-weight: bold;
 }
 
 .node-details-sidebar h4 {
-  color: #d3d3d3;
   margin-top: 20px;
+  font-size: 16px;
 }
 
 /* Paragraphes */
-.node-details-sidebar p {
+.node-details-sidebar p,
+.node-details-sidebar ul li {
   color: #fff;
   margin: 5px 0;
+  font-size: 15px;
+}
+
+.node-details-sidebar strong {
+  color: #ffd32a;
+  font-weight: bold;
 }
 
 /* Sections de contenu défilant */
@@ -48,6 +58,9 @@
 
 .node-details-sidebar ul li {
   margin-bottom: 10px;
+  background: #232326;
+  border-radius: 6px;
+  padding: 6px 10px;
 }
 
 /* Style de la prévisualisation des données */
@@ -59,18 +72,25 @@ pre {
 
 /* Bouton de fermeture */
 .node-details-sidebar button {
-  background-color: #444; /* Fond gris contrastant */
-  color: #fff;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 5px;
+  background: #232326;
+  color: #ffd32a;
+  border: 2px solid #ffd32a;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
   margin-top: 20px;
   width: 100%;
+  text-transform: uppercase;
 }
 
 .node-details-sidebar button:hover {
-  background-color: #555; /* Changement de teinte au survol */
+  background: #ffd32a;
+  color: #18181b;
+  transform: translateY(-2px) scale(1.03);
 }
 
 /* Personnalisation de la barre de défilement */
@@ -94,12 +114,20 @@ pre {
 /* Zone défilante pour les "related triples" */
 .related-triples {
   margin-top: 20px;
-  background: rgba(0, 0, 0, 0); /* Noir semi-transparent harmonisé */
-  padding: 20px;
-  border-radius: 5px;
-  overflow-y: auto; /* Permet le défilement vertical */
-  max-height: 200px; /* Hauteur maximale avant d'activer la barre de défilement */
-  color: #fff; /* Texte blanc pour le contraste */
+  background: #18181b;
+  border: 1.5px solid #ffd32a;
+  border-radius: 8px;
+  padding: 14px 12px 10px 12px;
+  overflow-y: auto;
+  max-height: 200px;
+  color: #fff;
+}
+
+.related-triples h4 {
+  color: #ffd32a;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: bold;
 }
 
 /* Personnalisation de la barre de défilement pour cette section */

@@ -5,7 +5,7 @@ export const NODE_COLORS = {
   SUBJECT: "#A259FF", // Jaune Agent
   PREDICATE: "#FFD32A", // Violet
   OBJECT: "#3ED598", // Vert
-  CREATOR: "#FFD32A", // Jaune (ou autre si tu veux différencier)
+  CREATOR: "#2196F3", // Bleu pour Creator
 };
 
 // Helper function to get node color based on role

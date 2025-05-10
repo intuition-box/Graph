@@ -15,7 +15,7 @@ export const transformToGraphData = (triples) => {
         label: subject.label,
         isTriple: false,
         color: getNodeColor("subject"),
-        role: "subject",
+        type: "subject",
       };
       nodeMap.set(subject.id, subjectNode);
       nodes.push(subjectNode);
@@ -28,7 +28,7 @@ export const transformToGraphData = (triples) => {
         label: predicate.label,
         isTriple: false,
         color: getNodeColor("predicate"),
-        role: "predicate",
+        type: "predicate",
       };
       nodeMap.set(predicate.id, predicateNode);
       nodes.push(predicateNode);
@@ -41,7 +41,7 @@ export const transformToGraphData = (triples) => {
         label: object.label,
         isTriple: false,
         color: getNodeColor("object"),
-        role: "object",
+        type: "object",
       };
       nodeMap.set(object.id, objectNode);
       nodes.push(objectNode);
