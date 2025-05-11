@@ -3,9 +3,9 @@ import { PiGraphLight } from "react-icons/pi";
 import { FaArrowLeft, FaArrowRight, FaUser } from "react-icons/fa";
 
 const navBtnStyle = {
-  background: "#232326",
-  color: "#ffd32a",
-  border: "2px solid #ffd32a",
+  background: "#ffd32a",
+  color: "#18181b",
+  border: "none",
   borderRadius: 12,
   width: 44,
   height: 44,
@@ -20,6 +20,13 @@ const navBtnStyle = {
   alignItems: "center",
   justifyContent: "center",
   padding: 0,
+  transition: "background 0.2s, color 0.2s, transform 0.1s",
+};
+
+const navBtnHoverStyle = {
+  background: "#ffe066",
+  color: "#18181b",
+  transform: "translateY(-2px) scale(1.03)",
 };
 
 const NavigationBar = ({
@@ -30,6 +37,11 @@ const NavigationBar = ({
   canGoForward,
   onMyView,
 }) => {
+  // Gestion du hover avec React (sinon utiliser :hover en CSS)
+  const [hovered, setHovered] = React.useState("");
+  const getBtnStyle = (key) =>
+    hovered === key ? { ...navBtnStyle, ...navBtnHoverStyle } : navBtnStyle;
+
   return (
     <div
       style={{
@@ -43,29 +55,41 @@ const NavigationBar = ({
         alignItems: "center",
       }}
     >
-      <button style={navBtnStyle} onClick={onMyView} aria-label="Profile">
+      <button
+        style={getBtnStyle("profile")}
+        onClick={onMyView}
+        aria-label="Profile"
+        onMouseEnter={() => setHovered("profile")}
+        onMouseLeave={() => setHovered("")}
+      >
         <FaUser />
       </button>
       <button
-        style={{ ...navBtnStyle, width: 54 }}
+        style={{ ...getBtnStyle("graph"), width: 54 }}
         onClick={onReset}
         aria-label="Return to graph"
+        onMouseEnter={() => setHovered("graph")}
+        onMouseLeave={() => setHovered("")}
       >
         <PiGraphLight size={28} />
       </button>
       <button
-        style={{ ...navBtnStyle, opacity: !canGoBack ? 0.5 : 1 }}
+        style={{ ...getBtnStyle("prev"), opacity: !canGoBack ? 0.5 : 1 }}
         onClick={onBack}
         disabled={!canGoBack}
         aria-label="Previous"
+        onMouseEnter={() => setHovered("prev")}
+        onMouseLeave={() => setHovered("")}
       >
         <FaArrowLeft />
       </button>
       <button
-        style={{ ...navBtnStyle, opacity: !canGoForward ? 0.5 : 1 }}
+        style={{ ...getBtnStyle("next"), opacity: !canGoForward ? 0.5 : 1 }}
         onClick={onForward}
         disabled={!canGoForward}
         aria-label="Next"
+        onMouseEnter={() => setHovered("next")}
+        onMouseLeave={() => setHovered("")}
       >
         <FaArrowRight />
       </button>

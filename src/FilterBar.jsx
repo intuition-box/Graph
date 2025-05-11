@@ -42,9 +42,9 @@ const FilterBar = ({
       />
       <button
         style={{
-          background: "#232326",
-          color: "#ffd32a",
-          border: "2px solid #ffd32a",
+          background: "#ffd32a",
+          color: "#18181b",
+          border: "none",
           borderRadius: 12,
           width: 120,
           height: 40,
@@ -53,7 +53,10 @@ const FilterBar = ({
           boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
           cursor: "pointer",
           textTransform: "uppercase",
+          transition: "background 0.2s, color 0.2s, transform 0.1s",
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#ffe066")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#ffd32a")}
         onClick={onReset}
       >
         Reset
