@@ -1,7 +1,7 @@
 import React from "react";
 import { NODE_COLORS } from "./nodeColors";
 
-const GraphLegend = ({ showCreators = false }) => {
+const GraphLegend = () => {
   return (
     <div
       className="agent-legend"
@@ -59,27 +59,6 @@ const GraphLegend = ({ showCreators = false }) => {
           ></span>
           Object
         </li>
-        {showCreators && (
-          <li
-            style={{
-              display: "flex",
-              alignItems: "center",
-              marginBottom: "5px",
-            }}
-          >
-            <span
-              style={{
-                width: "15px",
-                height: "15px",
-                backgroundColor: NODE_COLORS.CREATOR,
-                borderRadius: "50%",
-                display: "inline-block",
-                marginRight: "10px",
-              }}
-            ></span>
-            Creator
-          </li>
-        )}
       </ul>
     </div>
   );

@@ -3,7 +3,7 @@ import { gql, GraphQLClient } from "graphql-request";
 // Hardcoded Endpoints with display names
 export const ENDPOINTS = {
   baseSepolia: {
-    url: " https://dev.base.intuition-api.com/v1/graphql",
+    url: " https://dev.base-sepolia.intuition-api.com/v1/graphql",
     displayName: "Base Testnet",
   },
 };

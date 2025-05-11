@@ -13,7 +13,8 @@ const Graph3D = ({ graphData, onNodeClick, onEngineStop, fgRef }) => {
       onNodeClick={onNodeClick}
       linkColor={() => "rgba(255, 211, 42, 0.15)"}
       linkDirectionalParticles={2}
-      linkDirectionalParticleSpeed={0.005}
+      linkDirectionalParticleSpeed={0.0025}
+      linkDirectionalParticleColor={() => "rgba(255,255,255,0.5)"}
       nodeAutoColorBy="type"
       nodeThreeObject={(node) => {
         const sprite = new SpriteText(node.label || "");

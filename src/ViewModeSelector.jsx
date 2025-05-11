@@ -3,8 +3,6 @@ import React from "react";
 const ViewModeSelector = ({
   viewMode,
   onViewModeChange,
-  showCreators,
-  onShowCreatorsChange,
 }) => {
   return (
     <div
@@ -21,16 +19,6 @@ const ViewModeSelector = ({
         <option value="3D">3D</option>
         <option value="VR">VR</option>
       </select>
-
-      <label style={{ marginLeft: "10px" }}>
-        Show Creators
-        <input
-          type="checkbox"
-          checked={showCreators}
-          onChange={(e) => onShowCreatorsChange(e.target.checked)}
-          style={{ marginLeft: "8px" }}
-        />
-      </label>
     </div>
   );
 };

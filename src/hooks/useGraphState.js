@@ -1,14 +1,12 @@
 import { useState, useCallback, useRef } from "react";
 import { fetchTriples, fetchTriplesForNode, searchTriples } from "../api";
 import { transformToGraphData } from "../graphData";
-import { NODE_COLORS } from "../nodeColors";
 
 export const useGraphState = (endpoint) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedTriple, setSelectedTriple] = useState(null);
-  const [showCreators, setShowCreators] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [graphHistory, setGraphHistory] = useState([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
@@ -16,58 +14,15 @@ export const useGraphState = (endpoint) => {
 
   // Filtres
   const [subjectFilter, setSubjectFilter] = useState("");
-  const [predicateFilter, setPredicateFilter] = useState("");
   const [objectFilter, setObjectFilter] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [shouldSearch, setShouldSearch] = useState(false);
-
-  const enhanceGraphDataWithCreators = useCallback((graphData, triples) => {
-    const creatorNodes = [];
-    const creatorLinks = [];
-
-    triples.forEach((triple) => {
-      const entities = [triple.subject, triple.predicate, triple.object];
-
-      entities.forEach((entity) => {
-        if (entity.creator_id) {
-          if (
-            !creatorNodes.find(
-              (node) => node.id === `creator-${entity.creator_id}`
-            )
-          ) {
-            creatorNodes.push({
-              id: `creator-${entity.creator_id}`,
-              label: `${entity.creator_id}`,
-              type: "creator",
-              color: NODE_COLORS.CREATOR,
-            });
-          }
-
-          creatorLinks.push({
-            source: `creator-${entity.creator_id}`,
-            target: entity.id,
-            label: "created",
-          });
-        }
-      });
-    });
-
-    return {
-      nodes: [...graphData.nodes, ...creatorNodes],
-      links: [...graphData.links, ...creatorLinks],
-    };
-  }, []);
 
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
       const triples = await fetchTriples(endpoint);
-      let baseGraphData = transformToGraphData(triples);
-
-      if (showCreators) {
-        baseGraphData = enhanceGraphDataWithCreators(baseGraphData, triples);
-      }
-
+      const baseGraphData = transformToGraphData(triples);
       setGraphData(baseGraphData);
       setInitialGraphData(baseGraphData);
     } catch (error) {
@@ -75,13 +30,12 @@ export const useGraphState = (endpoint) => {
     } finally {
       setIsLoading(false);
     }
-  }, [endpoint, showCreators, enhanceGraphDataWithCreators]);
+  }, [endpoint]);
 
   const resetGraph = useCallback(() => {
     setGraphData(initialGraphData);
     setSelectedTriple(null);
     setSubjectFilter("");
-    setPredicateFilter("");
     setObjectFilter("");
     setShouldSearch(false);
   }, [initialGraphData]);
@@ -140,9 +94,6 @@ export const useGraphState = (endpoint) => {
       case "subject":
         setSubjectFilter(value);
         break;
-      case "predicate":
-        setPredicateFilter(value);
-        break;
       case "object":
         setObjectFilter(value);
         break;
@@ -158,7 +109,7 @@ export const useGraphState = (endpoint) => {
   const applyFilters = useCallback(async () => {
     if (!shouldSearch) return;
 
-    if (!subjectFilter && !predicateFilter && !objectFilter) {
+    if (!subjectFilter && !objectFilter) {
       resetGraph();
       return;
     }
@@ -167,7 +118,6 @@ export const useGraphState = (endpoint) => {
     try {
       const filters = {
         subject: subjectFilter,
-        predicate: predicateFilter,
         object: objectFilter,
       };
 
@@ -179,16 +129,7 @@ export const useGraphState = (endpoint) => {
       }
 
       const newGraphData = transformToGraphData(searchResults);
-
-      if (showCreators) {
-        const enhancedData = enhanceGraphDataWithCreators(
-          newGraphData,
-          searchResults
-        );
-        setGraphData(enhancedData);
-      } else {
-        setGraphData(newGraphData);
-      }
+      setGraphData(newGraphData);
 
       setGraphHistory((prevHistory) => {
         const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
@@ -204,11 +145,8 @@ export const useGraphState = (endpoint) => {
     }
   }, [
     subjectFilter,
-    predicateFilter,
     objectFilter,
     endpoint,
-    showCreators,
-    enhanceGraphDataWithCreators,
     resetGraph,
     currentHistoryIndex,
     shouldSearch,
@@ -239,16 +177,13 @@ export const useGraphState = (endpoint) => {
     initialGraphData,
     isInitialLoad,
     selectedTriple,
-    showCreators,
     isLoading,
     isSearching,
     subjectFilter,
-    predicateFilter,
     objectFilter,
     shouldSearch,
     canGoBack: currentHistoryIndex > 0,
     canGoForward: currentHistoryIndex < graphHistory.length - 1,
-    setShowCreators,
     setSelectedTriple,
     setIsInitialLoad,
     loadInitialData,

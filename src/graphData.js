@@ -21,19 +21,6 @@ export const transformToGraphData = (triples) => {
       nodes.push(subjectNode);
     }
 
-    // Create or update predicate node
-    if (!nodeMap.has(predicate.id)) {
-      const predicateNode = {
-        id: predicate.id,
-        label: predicate.label,
-        isTriple: false,
-        color: getNodeColor("predicate"),
-        type: "predicate",
-      };
-      nodeMap.set(predicate.id, predicateNode);
-      nodes.push(predicateNode);
-    }
-
     // Create or update object node
     if (!nodeMap.has(object.id)) {
       const objectNode = {
@@ -47,16 +34,13 @@ export const transformToGraphData = (triples) => {
       nodes.push(objectNode);
     }
 
-    // Create links
+    // Créer un lien direct du sujet à l'objet, avec le label du prédicat
     links.push({
       source: subject.id,
-      target: predicate.id,
-      type: "subject-to-predicate",
-    });
-    links.push({
-      source: predicate.id,
       target: object.id,
-      type: "predicate-to-object",
+      type: "subject-to-object",
+      label: predicate.label,
+      predicateId: predicate.id,
     });
   });
 

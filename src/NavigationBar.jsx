@@ -1,19 +1,25 @@
 import React from "react";
+import { PiGraphLight } from "react-icons/pi";
+import { FaArrowLeft, FaArrowRight, FaUser } from "react-icons/fa";
 
 const navBtnStyle = {
   background: "#232326",
   color: "#ffd32a",
   border: "2px solid #ffd32a",
   borderRadius: 12,
-  width: 150,
+  width: 44,
   height: 44,
-  fontSize: 16,
+  fontSize: 22,
   fontWeight: "bold",
   boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
   cursor: "pointer",
-  marginBottom: 8,
+  marginBottom: 0,
   marginTop: 0,
   textTransform: "uppercase",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
 };
 
 const NavigationBar = ({
@@ -28,33 +34,40 @@ const NavigationBar = ({
     <div
       style={{
         position: "absolute",
-        top: "75px",
-        left: "10px",
+        top: "18px",
+        left: "18px",
         zIndex: 50,
         display: "flex",
-        flexDirection: "column",
-        gap: "8px",
+        flexDirection: "row",
+        gap: "12px",
+        alignItems: "center",
       }}
     >
-      <button style={navBtnStyle} onClick={onReset} disabled={false}>
-        Return to graph
+      <button style={navBtnStyle} onClick={onMyView} aria-label="Profile">
+        <FaUser />
       </button>
-      <button style={navBtnStyle} onClick={onMyView}>
-        My View
+      <button
+        style={{ ...navBtnStyle, width: 54 }}
+        onClick={onReset}
+        aria-label="Return to graph"
+      >
+        <PiGraphLight size={28} />
       </button>
       <button
         style={{ ...navBtnStyle, opacity: !canGoBack ? 0.5 : 1 }}
         onClick={onBack}
         disabled={!canGoBack}
+        aria-label="Previous"
       >
-        Previous
+        <FaArrowLeft />
       </button>
       <button
         style={{ ...navBtnStyle, opacity: !canGoForward ? 0.5 : 1 }}
         onClick={onForward}
         disabled={!canGoForward}
+        aria-label="Next"
       >
-        Next
+        <FaArrowRight />
       </button>
     </div>
   );

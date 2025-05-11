@@ -24,16 +24,13 @@ const GraphVisualization = ({ endpoint }) => {
     graphData,
     isInitialLoad,
     selectedTriple,
-    showCreators,
     isLoading,
     isSearching,
     subjectFilter,
-    predicateFilter,
     objectFilter,
     shouldSearch,
     canGoBack,
     canGoForward,
-    setShowCreators,
     setSelectedTriple,
     setIsInitialLoad,
     loadInitialData,
@@ -124,8 +121,6 @@ const GraphVisualization = ({ endpoint }) => {
             <ViewModeSelector
               viewMode={viewMode}
               onViewModeChange={setViewMode}
-              showCreators={showCreators}
-              onShowCreatorsChange={setShowCreators}
             />
             <div
               style={{
@@ -139,8 +134,8 @@ const GraphVisualization = ({ endpoint }) => {
                 onClick={() => setFiltersOpen(false)}
                 style={{
                   position: "absolute",
-                  top: -26,
-                  right: 0,
+                  top: -20,
+                  right: -16,
                   background: "none",
                   border: "none",
                   color: "#ffd32a",
@@ -149,6 +144,11 @@ const GraphVisualization = ({ endpoint }) => {
                   zIndex: 2,
                   padding: 0,
                   lineHeight: 1,
+                  width: 24,
+                  height: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
                 aria-label="Fermer les filtres"
               >
@@ -156,7 +156,6 @@ const GraphVisualization = ({ endpoint }) => {
               </button>
               <FilterBar
                 subjectFilter={subjectFilter}
-                predicateFilter={predicateFilter}
                 objectFilter={objectFilter}
                 onFilterChange={handleFilterChange}
                 onReset={resetGraph}
@@ -194,7 +193,7 @@ const GraphVisualization = ({ endpoint }) => {
         />
       )}
 
-      <GraphLegend showCreators={showCreators} />
+      <GraphLegend />
 
       {selectedTriple && (
         <NodeDetailsSidebar

@@ -2,7 +2,6 @@ import React from "react";
 
 const FilterBar = ({
   subjectFilter,
-  predicateFilter,
   objectFilter,
   onFilterChange,
   onReset,
@@ -20,23 +19,7 @@ const FilterBar = ({
           borderRadius: "4px",
           border: "1px solid #ffd32a",
           fontSize: "14px",
-          width: "100px",
-          background: "#232326",
-          color: "#fff",
-        }}
-      />
-      <input
-        className="agent-navbar"
-        type="text"
-        value={predicateFilter}
-        onChange={(e) => onFilterChange("predicate", e.target.value)}
-        placeholder="Predicate"
-        style={{
-          padding: "5px",
-          borderRadius: "4px",
-          border: "1px solid #ffd32a",
-          fontSize: "14px",
-          width: "100px",
+          width: "150px",
           background: "#232326",
           color: "#fff",
         }}
@@ -52,7 +35,7 @@ const FilterBar = ({
           borderRadius: "4px",
           border: "1px solid #ffd32a",
           fontSize: "14px",
-          width: "100px",
+          width: "150px",
           background: "#232326",
           color: "#fff",
         }}
