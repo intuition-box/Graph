@@ -11,6 +11,11 @@ import ViewModeSelector from "./ViewModeSelector";
 import { useGraphState } from "./hooks/useGraphState";
 import Drawer from "./components/Drawer";
 import SidebarDrawer from "./components/SidebarDrawer";
+import { fetchClaimsByAccount, fetchTriplesByCreator } from "./api";
+import ClaimCard from "./components/ClaimCard";
+import PositionCard from "./components/PositionCard";
+
+const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
 
 const GraphVisualization = ({ endpoint }) => {
   const fgRef = useRef();
@@ -19,6 +24,8 @@ const GraphVisualization = ({ endpoint }) => {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [claims, setClaims] = React.useState([]);
+  const [positions, setPositions] = React.useState([]);
 
   const {
     graphData,
@@ -57,6 +64,20 @@ const GraphVisualization = ({ endpoint }) => {
       setIsInitialLoad(false);
     }
   };
+
+  // Charger les claims quand le drawer claims s'ouvre
+  React.useEffect(() => {
+    if (drawerOpen && activeTab === "claims") {
+      fetchClaimsByAccount(ACCOUNT_ID, endpoint).then(setClaims);
+    }
+  }, [drawerOpen, activeTab, endpoint]);
+
+  // Charger les positions quand le drawer positions s'ouvre
+  React.useEffect(() => {
+    if (drawerOpen && activeTab === "positions") {
+      fetchTriplesByCreator(ACCOUNT_ID, endpoint).then(setPositions);
+    }
+  }, [drawerOpen, activeTab, endpoint]);
 
   return (
     <div>
@@ -246,7 +267,8 @@ const GraphVisualization = ({ endpoint }) => {
         {[
           { key: null, label: "Map" },
           { key: "connections", label: "Connections" },
-          { key: "recommendations", label: "Recommendations" },
+          { key: "positions", label: "Positions" },
+          { key: "claims", label: "Claims" },
           { key: "activity", label: "Activity" },
         ].map((tab) => (
           <div
@@ -294,10 +316,32 @@ const GraphVisualization = ({ endpoint }) => {
           setActiveTab(null);
         }}
       >
-        {activeTab === "recommendations" && (
+        {activeTab === "claims" && (
           <>
-            <h2>Recommendations</h2>
-            <p>Contenu recommendations ici...</p>
+            <h2>Claims</h2>
+            {claims.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucun claim trouvé.</p>
+            ) : (
+              <div>
+                {claims.map((claim) => (
+                  <ClaimCard key={claim.id} claim={claim} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {activeTab === "positions" && (
+          <>
+            <h2>Positions</h2>
+            {positions.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucune position trouvée.</p>
+            ) : (
+              <div>
+                {positions.map((position) => (
+                  <PositionCard key={position.id} position={position} />
+                ))}
+              </div>
+            )}
           </>
         )}
         {activeTab === "activity" && (
