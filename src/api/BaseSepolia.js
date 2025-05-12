@@ -3,7 +3,7 @@ import { gql, GraphQLClient } from "graphql-request";
 // Hardcoded Endpoints with display names
 export const ENDPOINTS = {
   baseSepolia: {
-    url: " https://dev.base.intuition-api.com/v1/graphql",
+    url: " https://dev.base-sepolia.intuition-api.com/v1/graphql",
     displayName: "Base Testnet",
   },
 };
@@ -212,3 +212,58 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
     throw error;
   }
 };
+
+// Fetch Claims by Account
+export const fetchClaimsByAccount = async (
+  accountId,
+  endpoint = "baseSepolia"
+) => {
+  const client = createClient(endpoint);
+  const query = gql`
+    query ClaimsByAccount($accountId: String!) {
+      claims(where: { account_id: { _eq: $accountId } }) {
+        id
+        account_id
+        counter_shares
+        counter_vault_id
+        object_id
+        predicate_id
+        shares
+        subject_id
+        triple_id
+        vault_id
+      }
+    }
+  `;
+  const variables = { accountId };
+  const data = await client.request(query, variables);
+  return data.claims;
+};
+
+// Fetch Triples (Positions) by Creator
+export const fetchTriplesByCreator = async (
+  creatorId,
+  endpoint = "baseSepolia"
+) => {
+  const client = createClient(endpoint);
+  const query = gql`
+    query TriplesByCreator($creatorId: String!) {
+      triples(where: { creator_id: { _eq: $creatorId } }) {
+        id
+        counter_vault {
+          id
+          total_shares
+        }
+        vault {
+          id
+          total_shares
+        }
+      }
+    }
+  `;
+  const variables = { creatorId };
+  const data = await client.request(query, variables);
+  return data.triples;
+};
+
+test

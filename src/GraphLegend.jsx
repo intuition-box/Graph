@@ -1,53 +1,64 @@
 import React from "react";
 import { NODE_COLORS } from "./nodeColors";
 
-const GraphLegend = ({ showCreators = false }) => {
-  const legendEntries = Object.entries(NODE_COLORS)
-    .filter(([key]) => key !== 'CREATOR' || showCreators)
-    .map(([key, color]) => ({
-      role: key.toLowerCase(),
-      color
-    }));
-
+const GraphLegend = () => {
   return (
     <div
+      className="agent-legend"
       style={{
         position: "absolute",
         bottom: "20px",
         right: "10px",
         zIndex: 10,
-        background: "#222",
-        color: "#fff",
-        padding: "10px",
-        borderRadius: "4px",
-        boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.2)",
-        fontSize: "14px",
       }}
     >
       <h4 style={{ margin: "0 0 10px 0", fontSize: "16px" }}>Graph Legend</h4>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {legendEntries.map(({ role, color }) => (
-          <li
-            key={role}
+        <li
+          style={{ display: "flex", alignItems: "center", marginBottom: "5px" }}
+        >
+          <span
             style={{
-              display: "flex",
-              alignItems: "center",
-              marginBottom: "5px",
+              width: "15px",
+              height: "15px",
+              backgroundColor: NODE_COLORS.SUBJECT,
+              borderRadius: "50%",
+              display: "inline-block",
+              marginRight: "10px",
             }}
-          >
-            <span
-              style={{
-                width: "15px",
-                height: "15px",
-                backgroundColor: color,
-                borderRadius: "50%",
-                display: "inline-block",
-                marginRight: "10px",
-              }}
-            ></span>
-            {role.charAt(0).toUpperCase() + role.slice(1)}
-          </li>
-        ))}
+          ></span>
+          Subject
+        </li>
+        <li
+          style={{ display: "flex", alignItems: "center", marginBottom: "5px" }}
+        >
+          <span
+            style={{
+              width: "15px",
+              height: "15px",
+              backgroundColor: NODE_COLORS.PREDICATE,
+              borderRadius: "50%",
+              display: "inline-block",
+              marginRight: "10px",
+            }}
+          ></span>
+          Predicate
+        </li>
+        <li
+          style={{ display: "flex", alignItems: "center", marginBottom: "5px" }}
+        >
+          <span
+            style={{
+              width: "15px",
+              height: "15px",
+              backgroundColor: NODE_COLORS.OBJECT,
+              borderRadius: "50%",
+              display: "inline-block",
+              marginRight: "10px",
+            }}
+          ></span>
+          Object
+        </li>
       </ul>
     </div>
   );
