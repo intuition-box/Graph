@@ -1,6 +1,6 @@
 {
   "name": "playermap_graph",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "A React library for intuition visualization using force-directed graphs",
   "author": "Agent",
