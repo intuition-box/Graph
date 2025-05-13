@@ -250,13 +250,17 @@ export const fetchTriplesByCreator = async (
     query TriplesByCreator($creatorId: String!) {
       triples(where: { creator_id: { _eq: $creatorId } }) {
         id
-        counter_vault {
+        subject {
+          label
           id
-          total_shares
         }
-        vault {
+        predicate {
+          label
           id
-          total_shares
+        }
+        object {
+          label
+          id
         }
       }
     }
@@ -264,4 +268,114 @@ export const fetchTriplesByCreator = async (
   const variables = { creatorId };
   const data = await client.request(query, variables);
   return data.triples;
+};
+
+// Fetch Triples filtered for Agent view
+export const fetchTriplesForAgent = async (
+  objectId,
+  endpoint = "baseSepolia",
+  batchSize = 1000
+) => {
+  const client = createClient(endpoint);
+
+  // Pour GraphQL request, nous devons adapter la requête subscription en requête query
+  // Cette requête est compatible avec les APIs qui ne supportent pas les souscriptions
+  const adaptedQuery = gql`
+    query Claims_for_Agent(
+      $objectId: numeric!,
+      $batchSize: Int!
+    ) {
+      claims(
+        limit: $batchSize,
+        where: { object_id: { _eq: $objectId } }
+      ) {
+        subject {
+          id
+          label
+          as_subject_claims {
+            predicate {
+              label
+              id
+            }
+            object {
+              label
+              id
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const variables = {
+    batchSize,
+    objectId
+  };
+
+  try {
+    const data = await client.request(adaptedQuery, variables);
+
+    // Transformer les données reçues en format compatible avec les triples
+    const transformedData = data.claims.flatMap(claim => {
+      // Si le sujet n'a pas de claims associés, créer au moins un triple pour ce sujet
+      if (!claim.subject.as_subject_claims || claim.subject.as_subject_claims.length === 0) {
+        return [{
+          id: `${claim.subject.id}-connected-to-${objectId}`,
+          subject: {
+            id: claim.subject.id,
+            label: claim.subject.label,
+            type: "agent"
+          },
+          predicate: {
+            id: null,
+            label: "connected to",
+            type: "relation"
+          },
+          object: {
+            id: objectId,
+            label: "Agent",
+            type: "agent"
+          }
+        }];
+      }
+
+      // Pour chaque sujet et ses claims associés
+      return claim.subject.as_subject_claims.map(subClaim => {
+        return {
+          id: `${claim.subject.id}-${subClaim.predicate.label}-${subClaim.object.label}`,
+          subject: {
+            id: claim.subject.id,
+            label: claim.subject.label,
+            type: "agent"
+          },
+          predicate: {
+            id: subClaim.predicate.id || null,
+            label: subClaim.predicate.label,
+            type: "relation"
+          },
+          object: {
+            id: subClaim.object.id || null,
+            label: subClaim.object.label,
+            type: "concept"
+          }
+        };
+      });
+    });
+
+    return transformedData;
+  } catch (error) {
+    console.error("Error fetching agent-specific triples:", error);
+    // En cas d'erreur, essayons une approche alternative
+    return fetchTriples(endpoint).then(triples => {
+      // Filtrer les triples liés à l'agent
+      return triples.filter(triple =>
+        triple.subject.id === objectId ||
+        triple.object.id === objectId ||
+        triple.predicate.id === objectId
+      );
+    }).catch(fallbackError => {
+      console.error("Fallback fetch also failed:", fallbackError);
+      throw error; // Lancer l'erreur originale
+    });
+  }
 };

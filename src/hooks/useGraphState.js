@@ -1,8 +1,11 @@
 import { useState, useCallback, useRef } from "react";
-import { fetchTriples, fetchTriplesForNode, searchTriples } from "../api";
+import { fetchTriples, fetchTriplesForNode, searchTriples, fetchTriplesForAgent } from "../api";
 import { transformToGraphData } from "../graphData";
 
-export const useGraphState = (endpoint) => {
+// ID de l'objet agent
+const AGENT_OBJECT_ID = 24537; // À remplacer par l'ID réel de l'agent
+
+export const useGraphState = (endpoint, graphType = "base") => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -21,7 +24,12 @@ export const useGraphState = (endpoint) => {
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const triples = await fetchTriples(endpoint);
+      let triples;
+      if (graphType === "agent") {
+        triples = await fetchTriplesForAgent(AGENT_OBJECT_ID, endpoint);
+      } else {
+        triples = await fetchTriples(endpoint);
+      }
       const baseGraphData = transformToGraphData(triples);
       setGraphData(baseGraphData);
       setInitialGraphData(baseGraphData);
@@ -30,7 +38,7 @@ export const useGraphState = (endpoint) => {
     } finally {
       setIsLoading(false);
     }
-  }, [endpoint]);
+  }, [endpoint, graphType]);
 
   const resetGraph = useCallback(() => {
     setGraphData(initialGraphData);
@@ -198,5 +206,6 @@ export const useGraphState = (endpoint) => {
     applyFilters,
     goBack,
     goForward,
+    graphType,
   };
 };

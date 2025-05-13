@@ -102,3 +102,12 @@ export const fetchTriplesByCreator = async (
 ) => {
   return BaseSepolia.fetchTriplesByCreator(creatorId, endpoint);
 };
+
+// Fetch Triples filtered for Agent view
+export const fetchTriplesForAgent = async (
+  objectId,
+  endpoint = "baseSepolia",
+  batchSize = 1000
+) => {
+  return BaseSepolia.fetchTriplesForAgent(objectId, endpoint, batchSize);
+};

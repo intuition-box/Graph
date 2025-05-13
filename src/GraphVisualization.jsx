@@ -16,6 +16,7 @@ import ClaimCard from "./components/ClaimCard";
 import PositionCard from "./components/PositionCard";
 
 const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
+const AGENT_OBJECT_ID = 24537; // À remplacer par l'ID réel de l'agent
 
 const GraphVisualization = ({ endpoint }) => {
   const fgRef = useRef();
@@ -27,6 +28,7 @@ const GraphVisualization = ({ endpoint }) => {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [claims, setClaims] = React.useState([]);
   const [positions, setPositions] = React.useState([]);
+  const [graphType, setGraphType] = React.useState("agent");
 
   const {
     graphData,
@@ -48,11 +50,11 @@ const GraphVisualization = ({ endpoint }) => {
     applyFilters,
     goBack,
     goForward,
-  } = useGraphState(endpoint);
+  } = useGraphState(endpoint, graphType);
 
   useEffect(() => {
     loadInitialData();
-  }, [loadInitialData]);
+  }, [loadInitialData, graphType]);
 
   useEffect(() => {
     if (shouldSearch) {
@@ -172,6 +174,38 @@ const GraphVisualization = ({ endpoint }) => {
     </>
   );
 
+  // Composant de sélection du type de graphique
+  const GraphTypeSelector = () => (
+    <div 
+      style={{
+        display: "none",
+        alignItems: "center",
+        backgroundColor: "#27272a",
+        padding: "8px 12px",
+        borderRadius: 8,
+        marginLeft: 12,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+      }}
+    >
+      <span style={{ color: "white", marginRight: 10, fontSize: 14 }}>Graph Type:</span>
+      <select 
+        value={graphType}
+        onChange={(e) => setGraphType(e.target.value)}
+        style={{
+          backgroundColor: "#3f3f46",
+          color: "white",
+          border: "none",
+          padding: "4px 8px",
+          borderRadius: 4,
+          cursor: "pointer"
+        }}
+      >
+        <option value="base">Base</option>
+        <option value="agent">Agent</option>
+      </select>
+    </div>
+  );
+
   return (
     <div 
       ref={containerRef}
@@ -213,6 +247,8 @@ const GraphVisualization = ({ endpoint }) => {
           gap: "16px",
         }}
       >
+        <GraphTypeSelector />
+        
         {!filtersOpen && (
           <button
             style={{
