@@ -385,7 +385,7 @@ a-scene audio {
 }
 
 .a-enter-ar-button {
-  background: rgba(0, 0, 0, 0.20) url(`+D+`) 50% 50% no-repeat;
+  background: rgba(0, 0, 0, 0.20) url(`+B+`) 50% 50% no-repeat;
 }
 
 .a-enter-vr.fullscreen .a-enter-vr-button {
@@ -4853,7 +4853,7 @@ void main() {
 				}
 
 			}
-		`,blending:I,depthTest:!1,depthWrite:!1})}function eD(){return new Ol({name:"EquirectangularToCubeUV",uniforms:{envMap:{value:null}},vertexShader:nC(),fragmentShader:`
+		`,blending:I,depthTest:!1,depthWrite:!1})}function VD(){return new jl({name:"EquirectangularToCubeUV",uniforms:{envMap:{value:null}},vertexShader:PC(),fragmentShader:`
 
 			precision mediump float;
 			precision mediump int;
@@ -4872,7 +4872,7 @@ void main() {
 				gl_FragColor = vec4( texture2D ( envMap, uv ).rgb, 1.0 );
 
 			}
-		`,blending:I,depthTest:!1,depthWrite:!1})}function tD(){return new Ol({name:"CubemapToCubeUV",uniforms:{envMap:{value:null},flipEnvMap:{value:-1}},vertexShader:nC(),fragmentShader:`
+		`,blending:I,depthTest:!1,depthWrite:!1})}function HD(){return new jl({name:"CubemapToCubeUV",uniforms:{envMap:{value:null},flipEnvMap:{value:-1}},vertexShader:PC(),fragmentShader:`
 
 			precision mediump float;
 			precision mediump int;
@@ -4888,7 +4888,7 @@ void main() {
 				gl_FragColor = textureCube( envMap, vec3( flipEnvMap * vOutputDirection.x, vOutputDirection.yz ) );
 
 			}
-		`,blending:I,depthTest:!1,depthWrite:!1})}function nC(){return`
+		`,blending:I,depthTest:!1,depthWrite:!1})}function PC(){return`
 
 		precision mediump float;
 		precision mediump int;
@@ -4994,8 +4994,8 @@ void main() {
 `+Z,Z=Z.replace("uniform mat4 viewMatrix;",["uniform mat4 viewMatrices["+be+"];","#define viewMatrix viewMatrices[VIEW_ID]"].join(`
 `))));const me=Me+ie+R,st=Me+Z+B,je=fD(x,x.VERTEX_SHADER,me),Ke=fD(x,x.FRAGMENT_SHADER,st);x.attachShader(ae,je),x.attachShader(ae,Ke),h.index0AttributeName!==void 0?x.bindAttribLocation(ae,0,h.index0AttributeName):h.morphTargets===!0&&x.bindAttribLocation(ae,0,"position"),x.linkProgram(ae);function nt(mt){if(M.debug.checkShaderErrors){const dt=x.getProgramInfoLog(ae).trim(),bt=x.getShaderInfoLog(je).trim(),Pt=x.getShaderInfoLog(Ke).trim();let en=!0,Pn=!0;if(x.getProgramParameter(ae,x.LINK_STATUS)===!1)if(en=!1,typeof M.debug.onShaderError=="function")M.debug.onShaderError(x,ae,je,Ke);else{const Nt=pD(x,je,"vertex"),wn=pD(x,Ke,"fragment");console.error("THREE.WebGLProgram: Shader Error "+x.getError()+" - VALIDATE_STATUS "+x.getProgramParameter(ae,x.VALIDATE_STATUS)+`
 
-Material Name: `+mt.name+`
-Material Type: `+mt.type+`
+Material Name: `+At.name+`
+Material Type: `+At.type+`
 
 Program Info Log: `+dt+`
 `+Nt+`
@@ -8736,7 +8736,7 @@ void main() {
 				gl_FragColor = textureCube( envMap, vec3( flipEnvMap * vOutputDirection.x, vOutputDirection.yz ) );
 
 			}
-		`,blending:$u,depthTest:!1,depthWrite:!1})}function J3(){return`
+		`,blending:th,depthTest:!1,depthWrite:!1})}function UI(){return`
 
 		precision mediump float;
 		precision mediump int;
@@ -8837,8 +8837,8 @@ void main() {
 `)+`
 `+b);const w=S+v+l,C=S+b+u,T=yF(s,s.VERTEX_SHADER,w),D=yF(s,s.FRAGMENT_SHADER,C);s.attachShader(_,T),s.attachShader(_,D),n.index0AttributeName!==void 0?s.bindAttribLocation(_,0,n.index0AttributeName):n.morphTargets===!0&&s.bindAttribLocation(_,0,"position"),s.linkProgram(_);function I(U){if(r.debug.checkShaderErrors){const J=s.getProgramInfoLog(_).trim(),W=s.getShaderInfoLog(T).trim(),G=s.getShaderInfoLog(D).trim();let Q=!0,H=!0;if(s.getProgramParameter(_,s.LINK_STATUS)===!1)if(Q=!1,typeof r.debug.onShaderError=="function")r.debug.onShaderError(s,_,T,D);else{const j=xF(s,T,"vertex"),k=xF(s,D,"fragment");console.error("THREE.WebGLProgram: Shader Error "+s.getError()+" - VALIDATE_STATUS "+s.getProgramParameter(_,s.VALIDATE_STATUS)+`
 
-Material Name: `+U.name+`
-Material Type: `+U.type+`
+Material Name: `+O.name+`
+Material Type: `+O.type+`
 
 Program Info Log: `+J+`
 `+j+`
@@ -8901,7 +8901,7 @@ is considered to be not a multigraph by default (each edge is unique).`),r.multi
 ${M8(r,e)}
 ${C8(r)}
 return {Body: Body, Vector: Vector};
-`}function C8(r){let e=E8(r),n=e("{var}",{join:", "});return`
+`}function w6(r){let e=_6(r),n=e("{var}",{join:", "});return`
 function Body(${n}) {
   this.isPinned = false;
   this.pos = new Vector(${n});
@@ -8921,7 +8921,7 @@ Body.prototype.reset = function() {
 
 Body.prototype.setPosition = function (${n}) {
   ${e("this.pos.{var} = {var} || 0;",{indent:2})}
-};`}function M8(r,e){let n=E8(r),i="";return e&&(i=`${n(`
+};`}function C6(r,e){let n=_6(r),i="";return e&&(i=`${n(`
    var v{var};
 Object.defineProperty(this, '{var}', {
   set: function(v) { 
@@ -9063,7 +9063,7 @@ ${l("      node.")}
         }
         // If s / r < θ, treat this internal node as a single body, and calculate the
         // force it exerts on sourceBody, and add this amount to sourceBody's net force.
-        if ((node.max_${Wh(0)} - node.min_${Wh(0)}) / r < theta) {
+        if ((node.max_${Zh(0)} - node.min_${Zh(0)}) / r < theta) {
           // in the if statement above we consider node's width only
           // because the region was made into square during tree creation.
           // Thus there is no difference between using width or height.
@@ -9186,24 +9186,24 @@ ${s(8)}
 }
 return createQuadTree;
 
-`;function s(u){let c=[],d=Array(u+1).join(" ");for(let f=0;f<r;++f)c.push(d+`if (${Wh(f)} > max_${Wh(f)}) {`),c.push(d+`  quadIdx = quadIdx + ${Math.pow(2,f)};`),c.push(d+`  min_${Wh(f)} = max_${Wh(f)};`),c.push(d+`  max_${Wh(f)} = node.max_${Wh(f)};`),c.push(d+"}");return c.join(`
+`;function s(u){let c=[],d=Array(u+1).join(" ");for(let f=0;f<r;++f)c.push(d+`if (${Zh(f)} > max_${Zh(f)}) {`),c.push(d+`  quadIdx = quadIdx + ${Math.pow(2,f)};`),c.push(d+`  min_${Zh(f)} = max_${Zh(f)};`),c.push(d+`  max_${Zh(f)} = node.max_${Zh(f)};`),c.push(d+"}");return c.join(`
 `)}function a(){let u=Array(11).join(" "),c=[];for(let d=0;d<n;++d)c.push(u+`if (node.quad${d}) {`),c.push(u+`  queue[pushIdx] = node.quad${d};`),c.push(u+"  queueLength += 1;"),c.push(u+"  pushIdx += 1;"),c.push(u+"}");return c.join(`
 `)}function l(u){let c=[];for(let d=0;d<n;++d)c.push(`${u}quad${d} = null;`);return c.join(`
-`)}}function T8(r){let e=dI(r);return`
+`)}}function S6(r){let e=JI(r);return`
   function isSamePosition(point1, point2) {
     ${e("var d{var} = Math.abs(point1.{var} - point2.{var});",{indent:2})}
   
     return ${e("d{var} < 1e-8",{join:" && "})};
   }  
-`}function R8(r){var e=Math.pow(2,r);return`
+`}function T6(r){var e=Math.pow(2,r);return`
 function setChild(node, idx, child) {
   ${n()}
 }`;function n(){let i=[];for(let s=0;s<e;++s){let a=s===0?"  ":"  else ";i.push(`${a}if (idx === ${s}) node.quad${s} = child;`)}return i.join(`
-`)}}function I8(r){return`function getChild(node, idx) {
+`)}}function R6(r){return`function getChild(node, idx) {
 ${e()}
   return null;
 }`;function e(){let n=[],i=Math.pow(2,r);for(let s=0;s<i;++s)n.push(`  if (idx === ${s}) return node.quad${s};`);return n.join(`
-`)}}function B8(r){let e=dI(r),n=Math.pow(2,r);var i=`
+`)}}function I6(r){let e=JI(r),n=Math.pow(2,r);var i=`
 function QuadNode() {
   // body stored inside this node. In quad tree only leaf nodes (by construction)
   // contain bodies:
@@ -9226,7 +9226,7 @@ ${s("  this.")}
   ${e("this.max_{var} = 0;",{indent:2})}
 }
 `;return i;function s(a){let l=[];for(let u=0;u<n;++u)l.push(`${a}quad${u} = null;`);return l.join(`
-`)}}function D8(){return`
+`)}}function B6(){return`
 /**
  * Our implementation of QuadTree is non-recursive to avoid GC hit
  * This data structure represent stack of elements
@@ -9595,18 +9595,18 @@ spurious results.`)}}return!1};let b6=class{constructor(e,n="GraphQL request",i=
 `)+e+(VO(n)?Cr(`(
 `,qb(di(n,`
 `)),`
-)`):Cr("(",di(n,", "),")"))+": "+i+Cr(" ",di(s," "))},InputValueDefinition:{leave:({description:r,name:e,type:n,defaultValue:i,directives:s})=>Cr("",r,`
-`)+di([e+": "+n,Cr("= ",i),di(s," ")]," ")},InterfaceTypeDefinition:{leave:({description:r,name:e,interfaces:n,directives:i,fields:s})=>Cr("",r,`
-`)+di(["interface",e,Cr("implements ",di(n," & ")),di(i," "),ql(s)]," ")},UnionTypeDefinition:{leave:({description:r,name:e,directives:n,types:i})=>Cr("",r,`
-`)+di(["union",e,di(n," "),Cr("= ",di(i," | "))]," ")},EnumTypeDefinition:{leave:({description:r,name:e,directives:n,values:i})=>Cr("",r,`
-`)+di(["enum",e,di(n," "),ql(i)]," ")},EnumValueDefinition:{leave:({description:r,name:e,directives:n})=>Cr("",r,`
-`)+di([e,di(n," ")]," ")},InputObjectTypeDefinition:{leave:({description:r,name:e,directives:n,fields:i})=>Cr("",r,`
-`)+di(["input",e,di(n," "),ql(i)]," ")},DirectiveDefinition:{leave:({description:r,name:e,arguments:n,repeatable:i,locations:s})=>Cr("",r,`
-`)+"directive @"+e+(VO(n)?Cr(`(
-`,qb(di(n,`
+)`):Sr("(",fi(n,", "),")"))+": "+i+Sr(" ",fi(s," "))},InputValueDefinition:{leave:({description:r,name:e,type:n,defaultValue:i,directives:s})=>Sr("",r,`
+`)+fi([e+": "+n,Sr("= ",i),fi(s," ")]," ")},InterfaceTypeDefinition:{leave:({description:r,name:e,interfaces:n,directives:i,fields:s})=>Sr("",r,`
+`)+fi(["interface",e,Sr("implements ",fi(n," & ")),fi(i," "),nc(s)]," ")},UnionTypeDefinition:{leave:({description:r,name:e,directives:n,types:i})=>Sr("",r,`
+`)+fi(["union",e,fi(n," "),Sr("= ",fi(i," | "))]," ")},EnumTypeDefinition:{leave:({description:r,name:e,directives:n,values:i})=>Sr("",r,`
+`)+fi(["enum",e,fi(n," "),nc(i)]," ")},EnumValueDefinition:{leave:({description:r,name:e,directives:n})=>Sr("",r,`
+`)+fi([e,fi(n," ")]," ")},InputObjectTypeDefinition:{leave:({description:r,name:e,directives:n,fields:i})=>Sr("",r,`
+`)+fi(["input",e,fi(n," "),nc(i)]," ")},DirectiveDefinition:{leave:({description:r,name:e,arguments:n,repeatable:i,locations:s})=>Sr("",r,`
+`)+"directive @"+e+(IU(n)?Sr(`(
+`,p1(fi(n,`
 `)),`
-)`):Cr("(",di(n,", "),")"))+(i?" repeatable":"")+" on "+di(s," | ")},SchemaExtension:{leave:({directives:r,operationTypes:e})=>di(["extend schema",di(r," "),ql(e)]," ")},ScalarTypeExtension:{leave:({name:r,directives:e})=>di(["extend scalar",r,di(e," ")]," ")},ObjectTypeExtension:{leave:({name:r,interfaces:e,directives:n,fields:i})=>di(["extend type",r,Cr("implements ",di(e," & ")),di(n," "),ql(i)]," ")},InterfaceTypeExtension:{leave:({name:r,interfaces:e,directives:n,fields:i})=>di(["extend interface",r,Cr("implements ",di(e," & ")),di(n," "),ql(i)]," ")},UnionTypeExtension:{leave:({name:r,directives:e,types:n})=>di(["extend union",r,di(e," "),Cr("= ",di(n," | "))]," ")},EnumTypeExtension:{leave:({name:r,directives:e,values:n})=>di(["extend enum",r,di(e," "),ql(n)]," ")},InputObjectTypeExtension:{leave:({name:r,directives:e,fields:n})=>di(["extend input",r,di(e," "),ql(n)]," ")}};function di(r,e=""){var n;return(n=r==null?void 0:r.filter(i=>i).join(e))!==null&&n!==void 0?n:""}function ql(r){return Cr(`{
-`,qb(di(r,`
+)`):Sr("(",fi(n,", "),")"))+(i?" repeatable":"")+" on "+fi(s," | ")},SchemaExtension:{leave:({directives:r,operationTypes:e})=>fi(["extend schema",fi(r," "),nc(e)]," ")},ScalarTypeExtension:{leave:({name:r,directives:e})=>fi(["extend scalar",r,fi(e," ")]," ")},ObjectTypeExtension:{leave:({name:r,interfaces:e,directives:n,fields:i})=>fi(["extend type",r,Sr("implements ",fi(e," & ")),fi(n," "),nc(i)]," ")},InterfaceTypeExtension:{leave:({name:r,interfaces:e,directives:n,fields:i})=>fi(["extend interface",r,Sr("implements ",fi(e," & ")),fi(n," "),nc(i)]," ")},UnionTypeExtension:{leave:({name:r,directives:e,types:n})=>fi(["extend union",r,fi(e," "),Sr("= ",fi(n," | "))]," ")},EnumTypeExtension:{leave:({name:r,directives:e,values:n})=>fi(["extend enum",r,fi(e," "),nc(n)]," ")},InputObjectTypeExtension:{leave:({name:r,directives:e,fields:n})=>fi(["extend input",r,fi(e," "),nc(n)]," ")}};function fi(r,e=""){var n;return(n=r==null?void 0:r.filter(i=>i).join(e))!==null&&n!==void 0?n:""}function nc(r){return Sr(`{
+`,p1(fi(r,`
 `)),`
 }`)}function Cr(r,e,n=""){return e!=null&&e!==""?r+e+n:""}function qb(r){return Cr("  ",r.replace(/\n/g,`
   `))}function VO(r){var e;return(e=r==null?void 0:r.some(n=>n.includes(`
@@ -10005,7 +10005,7 @@ ${i.code}
 `)}getVaryings(e){let n="";const i=this.varyings;if(e==="vertex"||e==="compute")for(const s of i){e==="compute"&&(s.needsInterpolation=!0);const a=s.type,l=a.includes("int")||a.includes("uv")||a.includes("iv")?"flat ":"";n+=`${l}${s.needsInterpolation?"out":"/*out*/"} ${a} ${s.name};
 `}else if(e==="fragment"){for(const s of i)if(s.needsInterpolation){const a=s.type,l=a.includes("int")||a.includes("uv")||a.includes("iv")?"flat ":"";n+=`${l}in ${a} ${s.name};
 `}}return n}getVertexIndex(){return"uint( gl_VertexID )"}getInstanceIndex(){return"uint( gl_InstanceID )"}getInvocationLocalIndex(){return`uint( gl_InstanceID ) % ${this.object.workgroupSize.reduce((i,s)=>i*s,1)}u`}getDrawIndex(){return this.renderer.backend.extensions.has("WEBGL_multi_draw")?"uint( gl_DrawID )":null}getFrontFacing(){return"gl_FrontFacing"}getFragCoord(){return"gl_FragCoord.xy"}getFragDepth(){return"gl_FragDepth"}enableExtension(e,n,i=this.shaderStage){const s=this.extensions[i]||(this.extensions[i]=new Map);s.has(e)===!1&&s.set(e,{name:e,behavior:n})}getExtensions(e){const n=[];if(e==="vertex"){const s=this.renderer.backend.extensions;this.object.isBatchedMesh&&s.has("WEBGL_multi_draw")&&this.enableExtension("GL_ANGLE_multi_draw","require",e)}const i=this.extensions[e];if(i!==void 0)for(const{name:s,behavior:a}of i.values())n.push(`#extension ${s} : ${a}`);return n.join(`
-`)}isAvailable(e){let n=$k[e];if(n===void 0){if(e==="float32Filterable"){const i=this.renderer.backend.extensions;i.has("OES_texture_float_linear")?(i.get("OES_texture_float_linear"),n=!0):n=!1}$k[e]=n}return n}isFlipY(){return!0}registerTransform(e,n){this.transforms.push({varyingName:e,attributeNode:n})}getTransforms(){const e=this.transforms;let n="";for(let i=0;i<e.length;i++){const s=e[i],a=this.getPropertyName(s.attributeNode);n+=`${s.varyingName} = ${a};
+`)}isAvailable(e){let n=N4[e];if(n===void 0){if(e==="float32Filterable"){const i=this.renderer.backend.extensions;i.has("OES_texture_float_linear")?(i.get("OES_texture_float_linear"),n=!0):n=!1}N4[e]=n}return n}isFlipY(){return!0}registerTransform(e,n){this.transforms.push({varyingName:e,attributeNode:n})}getTransforms(){const e=this.transforms;let n="";for(let i=0;i<e.length;i++){const s=e[i],a=this.getPropertyName(s.attributeNode);n+=`${s.varyingName} = ${a};
 	`}return n}_getGLSLUniformStruct(e,n){return`
 layout( std140 ) uniform ${e} {
 ${n}
@@ -10017,7 +10017,7 @@ ${this.getSignature()}
 ${e.extensions}
 
 // precision
-${Xk}
+${F4}
 
 // uniforms
 ${e.uniforms}
@@ -10050,7 +10050,7 @@ void main() {
 ${this.getSignature()}
 
 // precision
-${Xk}
+${F4}
 
 // uniforms
 ${e.uniforms}
@@ -10155,7 +10155,7 @@ fn tsl_repeatWrapping( uv : vec2<f32>, dimension : vec2<u32> ) -> vec2<u32> {
 	return ( ( uvScaled % dimension ) + dimension ) % dimension;
 
 }
-`),biquadraticTexture:new na(`
+`),biquadraticTexture:new oa(`
 fn tsl_biquadraticTexture( map : texture_2d<f32>, coord : vec2f, level : i32 ) -> vec4f {
 
 	let iRes = vec2i( textureDimensions( map, level ) );
