@@ -1,39 +1,130 @@
 /* Style général de la sidebar */
 .node-details-sidebar {
-  position: fixed;
-  top: 80px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.7);
+  position: relative;
+  top: 0px;
+  right: 0;
+  background: rgba(24, 24, 27, 0.85);
+  /* Fond avec opacité */
+  backdrop-filter: blur(2px);
+  /* Effet de flou derrière pour améliorer la lisibilité */
   padding: 20px;
-  width: 350px;
+  width: 100%;
   border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.8);
-  z-index: 1000;
-  color: #fff;
+  border: 1px solid #ffd32a;
+  /* Bordure fine et jaune */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  color: #ffd32a;
   overflow-y: auto;
+  /* Permet le défilement */
+  max-height: 80vh;
+  /* Hauteur maximale */
+  font-size: 16px;
+  pointer-events: all !important;
+}
+
+/* Loading indicator */
+.loading-indicator {
+  padding: 10px;
+  background-color: #2b2b36;
+  border-radius: 6px;
+  text-align: center;
+  color: #ffe066;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+/* Error message */
+.error-message {
+  padding: 10px;
+  background-color: rgba(255, 91, 91, 0.2);
+  border: 1px solid rgba(255, 91, 91, 0.5);
+  border-radius: 6px;
+  color: #ff5b5b;
+  margin: 10px 0;
+}
+
+/* Sections d'informations */
+.basic-details {
+  background-color: rgba(35, 35, 40, 0.7);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 15px 0;
+  border-left: 3px solid #ffe066;
+}
+
+.atom-details {
+  background-color: rgba(35, 35, 40, 0.7);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 15px 0;
+  border-left: 3px solid #ffd32a;
+}
+
+/* Bouton de fermeture spécifique à la sidebar */
+.node-details-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: none;
+  border: none;
+  color: #ffd32a;
+  font-size: 32px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s, color 0.2s;
+  z-index: 10000;
+  padding: 0;
+  line-height: 1;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-details-close-btn:hover {
+  color: #ffe066;
+  transform: scale(1.2);
 }
 
 /* Titres et sous-titres */
 .node-details-sidebar h2 {
-  color: #f4f4f4;
+  color: #ffd32a;
   margin-bottom: 15px;
+  font-weight: bold;
+  margin-right: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 22px;
 }
 
 .node-details-sidebar h4 {
-  color: #d3d3d3;
+  color: #ffd32a;
   margin-top: 20px;
+  font-size: 18px;
 }
 
 /* Paragraphes */
-.node-details-sidebar p {
+.node-details-sidebar p,
+.node-details-sidebar ul li {
   color: #fff;
-  margin: 5px 0;
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.node-details-sidebar strong {
+  color: #ffd32a;
+  font-weight: bold;
 }
 
 /* Sections de contenu défilant */
 .scrollable-content {
   margin-top: 20px;
-  background: rgba(0, 0, 0, 0.7); /* Noir semi-transparent harmonisé */
+  background: rgba(0, 0, 0, 0.7);
+  /* Noir semi-transparent harmonisé */
   padding: 10px;
   border-radius: 5px;
   overflow-y: auto;
@@ -48,6 +139,9 @@
 
 .node-details-sidebar ul li {
   margin-bottom: 10px;
+  background: #232326;
+  border-radius: 6px;
+  padding: 6px 10px;
 }
 
 /* Style de la prévisualisation des données */
@@ -59,63 +153,84 @@ pre {
 
 /* Bouton de fermeture */
 .node-details-sidebar button {
-  background-color: #444; /* Fond gris contrastant */
-  color: #fff;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 5px;
+  background: #232326;
+  color: #ffd32a;
+  border: 2px solid #ffd32a;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.1s;
   margin-top: 20px;
   width: 100%;
+  text-transform: uppercase;
 }
 
 .node-details-sidebar button:hover {
-  background-color: #555; /* Changement de teinte au survol */
+  background: #ffd32a;
+  color: #18181b;
+  transform: translateY(-2px) scale(1.03);
 }
 
 /* Personnalisation de la barre de défilement */
-::-webkit-scrollbar {
-  width: 8px;
+.node-details-sidebar::-webkit-scrollbar {
+  width: 6px;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: #555;
+.node-details-sidebar::-webkit-scrollbar-thumb {
+  background-color: #ffd32a;
   border-radius: 10px;
 }
 
-::-webkit-scrollbar-track {
-  background-color: #333;
+.node-details-sidebar::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: #888;
+.node-details-sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: #ffe066;
 }
 
 /* Zone défilante pour les "related triples" */
 .related-triples {
   margin-top: 20px;
-  background: rgba(0, 0, 0, 0); /* Noir semi-transparent harmonisé */
-  padding: 20px;
-  border-radius: 5px;
-  overflow-y: auto; /* Permet le défilement vertical */
-  max-height: 200px; /* Hauteur maximale avant d'activer la barre de défilement */
-  color: #fff; /* Texte blanc pour le contraste */
+  background: rgba(35, 35, 40, 0.7);
+  border: 1px solid #ffd32a;
+  border-radius: 8px;
+  padding: 14px 12px 10px 12px;
+  overflow-y: auto;
+  max-height: 200px;
+  color: #fff;
+}
+
+.related-triples h4 {
+  color: #ffd32a;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: bold;
 }
 
 /* Personnalisation de la barre de défilement pour cette section */
 .related-triples::-webkit-scrollbar {
-  width: 8px; /* Largeur de la barre de défilement */
+  width: 8px;
+  /* Largeur de la barre de défilement */
 }
 
 .related-triples::-webkit-scrollbar-thumb {
-  background-color: #555; /* Couleur de la barre de défilement */
-  border-radius: 10px; /* Coins arrondis */
+  background-color: #555;
+  /* Couleur de la barre de défilement */
+  border-radius: 10px;
+  /* Coins arrondis */
 }
 
 .related-triples::-webkit-scrollbar-track {
-  background-color: #444; /* Fond gris contrastant */
+  background-color: #444;
+  /* Fond gris contrastant */
 }
 
 .related-triples::-webkit-scrollbar-thumb:hover {
-  background-color: #888; /* Couleur au survol */
+  background-color: #888;
+  /* Couleur au survol */
 }

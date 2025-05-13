@@ -1,9 +1,10 @@
-import React from 'react';
-import { ENDPOINTS } from './api';
+import React from "react";
+import { ENDPOINTS } from "./api";
 
 const EndpointSelector = ({ currentEndpoint, onEndpointChange }) => {
   return (
     <div
+      className="agent-navbar"
       style={{
         position: "absolute",
         top: "10px",
@@ -12,13 +13,8 @@ const EndpointSelector = ({ currentEndpoint, onEndpointChange }) => {
         display: "flex",
         alignItems: "center",
         gap: "10px",
-        background: "#444",
-        color: "black",
-        padding: "10px",
-        borderRadius: "4px",
         width: "270px",
         height: "25px",
-
       }}
     >
       <label htmlFor="endpoint" style={{ fontSize: "14px" }}>
@@ -28,14 +24,8 @@ const EndpointSelector = ({ currentEndpoint, onEndpointChange }) => {
         id="endpoint"
         value={currentEndpoint}
         onChange={(e) => onEndpointChange(e.target.value)}
-        style={{
-          padding: "5px",
-          borderRadius: "4px",
-          border: "none",
-          cursor: "pointer",
-          fontSize: "14px",
-          flex: 1,
-        }}
+        className="agent-endpoint-select"
+        style={{ width: "190px" }}
       >
         {Object.entries(ENDPOINTS).map(([key, value]) => (
           <option key={key} value={key}>

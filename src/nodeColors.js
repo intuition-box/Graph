@@ -2,10 +2,9 @@
 
 // Node color definitions
 export const NODE_COLORS = {
-  SUBJECT: "#4361EE", // Vibrant blue for subjects
-  PREDICATE: "#FF7300", // Orange for predicates
-  OBJECT: "#9D4EDD", // Rich purple for objects
-  CREATOR: "#00FF00", // Green for creators
+  SUBJECT: "#FFB300", // Jaune/orangé accessible
+  PREDICATE: "#1976D2", // Bleu profond accessible
+  OBJECT: "#43A047", // Vert foncé accessible
 };
 
 // Helper function to get node color based on role
@@ -17,9 +16,7 @@ export const getNodeColor = (role) => {
       return NODE_COLORS.PREDICATE;
     case "object":
       return NODE_COLORS.OBJECT;
-    case "creator":
-      return NODE_COLORS.CREATOR;
     default:
-      return NODE_COLORS.DEFAULT;
+      return "#444"; // Gris par défaut pour les autres
   }
 };

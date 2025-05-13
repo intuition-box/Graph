@@ -86,3 +86,28 @@ export const searchTriples = async (filters, endpoint = "base") => {
     throw error;
   }
 };
+
+// Fetch Claims by Account
+export const fetchClaimsByAccount = async (
+  accountId,
+  endpoint = "baseSepolia"
+) => {
+  return BaseSepolia.fetchClaimsByAccount(accountId, endpoint);
+};
+
+// Fetch Triples (Positions) by Creator
+export const fetchTriplesByCreator = async (
+  creatorId,
+  endpoint = "baseSepolia"
+) => {
+  return BaseSepolia.fetchTriplesByCreator(creatorId, endpoint);
+};
+
+// Fetch Triples filtered for Agent view
+export const fetchTriplesForAgent = async (
+  objectId,
+  endpoint = "baseSepolia",
+  batchSize = 1000
+) => {
+  return BaseSepolia.fetchTriplesForAgent(objectId, endpoint, batchSize);
+};

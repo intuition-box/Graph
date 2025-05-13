@@ -1,532 +1,475 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
-import SpriteText from "three-spritetext";
-import { fetchTriples, fetchTriplesForNode, searchTriples } from "./api";
-import { transformToGraphData } from "./graphData";
-import { NODE_COLORS } from "./nodeColors";
+import React, { useEffect, useRef } from "react";
 import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
+import FilterBar from "./FilterBar";
+import Graph2D from "./Graph2D";
+import Graph3D from "./Graph3D";
+import NavigationBar from "./NavigationBar";
+import ViewModeSelector from "./ViewModeSelector";
+import { useGraphState } from "./hooks/useGraphState";
+import Drawer from "./components/Drawer";
+import SidebarDrawer from "./components/SidebarDrawer";
+import { fetchClaimsByAccount, fetchTriplesByCreator } from "./api";
+import ClaimCard from "./components/ClaimCard";
+import PositionCard from "./components/PositionCard";
+
+const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
+const AGENT_OBJECT_ID = 24537; // À remplacer par l'ID réel de l'agent
 
 const GraphVisualization = ({ endpoint }) => {
-  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-  const [initialGraphData, setInitialGraphData] = useState(null);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [viewMode, setViewMode] = useState("2D");
-  const [selectedTriple, setSelectedTriple] = useState(null);
-  const [showCreators, setShowCreators] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const fgRef = useRef();
-  const [graphHistory, setGraphHistory] = useState([]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
-  const searchTimeoutRef = useRef(null);
+  const containerRef = useRef();
+  const [viewMode, setViewMode] = React.useState("2D");
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState(null);
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [claims, setClaims] = React.useState([]);
+  const [positions, setPositions] = React.useState([]);
+  const [graphType, setGraphType] = React.useState("agent");
 
-  // Filtres
-  const [subjectFilter, setSubjectFilter] = useState("");
-  const [predicateFilter, setPredicateFilter] = useState("");
-  const [objectFilter, setObjectFilter] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [shouldSearch, setShouldSearch] = useState(false);
-
-  const enhanceGraphDataWithCreators = useCallback((graphData, triples) => {
-    const creatorNodes = [];
-    const creatorLinks = [];
-
-    triples.forEach((triple) => {
-      const entities = [triple.subject, triple.predicate, triple.object];
-
-      entities.forEach((entity) => {
-        if (entity.creator_id) {
-          if (
-            !creatorNodes.find(
-              (node) => node.id === `creator-${entity.creator_id}`
-            )
-          ) {
-            creatorNodes.push({
-              id: `creator-${entity.creator_id}`,
-              label: `${entity.creator_id}`,
-              type: "creator",
-              color: NODE_COLORS.CREATOR,
-            });
-          }
-
-          creatorLinks.push({
-            source: `creator-${entity.creator_id}`,
-            target: entity.id,
-            label: "created",
-          });
-        }
-      });
-    });
-
-    return {
-      nodes: [...graphData.nodes, ...creatorNodes],
-      links: [...graphData.links, ...creatorLinks],
-    };
-  }, []);
+  const {
+    graphData,
+    isInitialLoad,
+    selectedTriple,
+    isLoading,
+    isSearching,
+    subjectFilter,
+    objectFilter,
+    shouldSearch,
+    canGoBack,
+    canGoForward,
+    setSelectedTriple,
+    setIsInitialLoad,
+    loadInitialData,
+    resetGraph,
+    handleNodeClick,
+    handleFilterChange,
+    applyFilters,
+    goBack,
+    goForward,
+  } = useGraphState(endpoint, graphType);
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const triples = await fetchTriples(endpoint);
-        let baseGraphData = transformToGraphData(triples);
+    loadInitialData();
+  }, [loadInitialData, graphType]);
 
-        if (showCreators) {
-          baseGraphData = enhanceGraphDataWithCreators(baseGraphData, triples);
-        }
-
-        setGraphData(baseGraphData);
-        setInitialGraphData(baseGraphData);
-      } catch (error) {
-        console.error("Error loading graph data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [showCreators, endpoint, enhanceGraphDataWithCreators]);
-
-  const resetGraph = useCallback(() => {
-    setGraphData(initialGraphData);
-    setSelectedTriple(null);
-    setSubjectFilter("");
-    setPredicateFilter("");
-    setObjectFilter("");
-    setShouldSearch(false);
-  }, [initialGraphData]);
-
-  const handleNodeClick = useCallback(
-    async (node) => {
-      console.log("Node clicked:", node);
-      setSelectedTriple(node);
-
-      if (fgRef.current) {
-        try {
-          const nodePosition = {
-            x: node.x,
-            y: node.y,
-            z: node.z || 0,
-          };
-
-          const filteredTriples = await fetchTriplesForNode(node.id, endpoint);
-          const newGraphData = transformToGraphData(filteredTriples);
-
-          const targetNode = newGraphData.nodes.find((n) => n.id === node.id);
-          if (targetNode) {
-            targetNode.x = nodePosition.x;
-            targetNode.y = nodePosition.y;
-            if (viewMode === "3D") targetNode.z = nodePosition.z;
-
-            targetNode.fx = nodePosition.x;
-            targetNode.fy = nodePosition.y;
-            if (viewMode === "3D") targetNode.fz = nodePosition.z;
-          }
-
-          setGraphHistory((prevHistory) => {
-            const updatedHistory = prevHistory.slice(
-              0,
-              currentHistoryIndex + 1
-            );
-            updatedHistory.push({ graphData, selectedTriple: node });
-            return updatedHistory;
-          });
-          setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-
-          setGraphData(newGraphData);
-        } catch (error) {
-          console.error("Error fetching triples:", error);
-        }
-      }
-    },
-    [viewMode, graphData, currentHistoryIndex, endpoint]
-  );
-
-  const handleEngineStop = useCallback(() => {
-    if (isInitialLoad && fgRef.current) {
-      setIsInitialLoad(false);
-    }
-  }, [isInitialLoad]);
-
-  const goBack = useCallback(() => {
-    if (currentHistoryIndex > 0) {
-      const { graphData, selectedTriple } =
-        graphHistory[currentHistoryIndex - 1];
-      setGraphData(graphData);
-      setSelectedTriple(selectedTriple);
-      setCurrentHistoryIndex((prevIndex) => prevIndex - 1);
-    }
-  }, [currentHistoryIndex, graphHistory]);
-
-  const goForward = useCallback(() => {
-    if (currentHistoryIndex < graphHistory.length - 1) {
-      const { graphData, selectedTriple } =
-        graphHistory[currentHistoryIndex + 1];
-      setGraphData(graphData);
-      setSelectedTriple(selectedTriple);
-      setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-    }
-  }, [currentHistoryIndex, graphHistory]);
-
-  const applyFilters = useCallback(async () => {
-    if (!shouldSearch) return;
-
-    console.log("Applying filters:", {
-      subjectFilter,
-      predicateFilter,
-      objectFilter,
-    });
-
-    if (!subjectFilter && !predicateFilter && !objectFilter) {
-      resetGraph();
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const filters = {
-        subject: subjectFilter,
-        predicate: predicateFilter,
-        object: objectFilter,
-      };
-
-      console.log("Sending search request with filters:", filters);
-      const searchResults = await searchTriples(filters, endpoint);
-      console.log("Search results:", searchResults);
-
-      if (!searchResults || searchResults.length === 0) {
-        console.log("No results found");
-        setGraphData({ nodes: [], links: [] });
-        return;
-      }
-
-      const newGraphData = transformToGraphData(searchResults);
-      console.log("Transformed graph data:", newGraphData);
-
-      if (showCreators) {
-        const enhancedData = enhanceGraphDataWithCreators(
-          newGraphData,
-          searchResults
-        );
-        console.log("Enhanced graph data with creators:", enhancedData);
-        setGraphData(enhancedData);
-      } else {
-        setGraphData(newGraphData);
-      }
-
-      setGraphHistory((prevHistory) => {
-        const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
-        updatedHistory.push({ graphData: newGraphData, selectedTriple: null });
-        return updatedHistory;
-      });
-      setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-    } catch (error) {
-      console.error("Error searching triples:", error);
-    } finally {
-      setIsSearching(false);
-      setShouldSearch(false);
-    }
-  }, [
-    subjectFilter,
-    predicateFilter,
-    objectFilter,
-    endpoint,
-    showCreators,
-    enhanceGraphDataWithCreators,
-    resetGraph,
-    currentHistoryIndex,
-    shouldSearch,
-  ]);
-
-  // Handle search input changes
-  const handleSearchInput = useCallback((type, value) => {
-    console.log(`Search input changed - type: ${type}, value: ${value}`);
-
-    // Clear any existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    // Update the appropriate filter
-    switch (type) {
-      case "subject":
-        setSubjectFilter(value);
-        break;
-      case "predicate":
-        setPredicateFilter(value);
-        break;
-      case "object":
-        setObjectFilter(value);
-        break;
-      default:
-        break;
-    }
-
-    // Set a new timeout
-    searchTimeoutRef.current = setTimeout(() => {
-      setShouldSearch(true);
-    }, 500);
-  }, []);
-
-  // Effect for handling search
   useEffect(() => {
     if (shouldSearch) {
       applyFilters();
     }
   }, [shouldSearch, applyFilters]);
 
-  return (
-    <div>
-      {(isLoading || isSearching) && <LoadingAnimation />}
-      <button
-        className="navigation-button"
-        onClick={resetGraph}
-        style={{
-          position: "absolute",
-          top: "75px",
-          left: "10px",
-          zIndex: 50,
-          width: "143px",
-        }}
-      >
-        Return to initial graph
-      </button>
+  const handleEngineStop = () => {
+    if (isInitialLoad && fgRef.current) {
+      setIsInitialLoad(false);
+    }
+  };
 
+  // Charger les claims quand le drawer claims s'ouvre
+  React.useEffect(() => {
+    if (drawerOpen && activeTab === "claims") {
+      fetchClaimsByAccount(ACCOUNT_ID, endpoint).then(setClaims);
+    }
+  }, [drawerOpen, activeTab, endpoint]);
+
+  // Charger les positions quand le drawer positions s'ouvre
+  React.useEffect(() => {
+    if (drawerOpen && activeTab === "positions") {
+      fetchTriplesByCreator(ACCOUNT_ID, endpoint).then(setPositions);
+    }
+  }, [drawerOpen, activeTab, endpoint]);
+
+  // Définir les onglets pour la barre de navigation
+  const tabs = [
+    { key: null, label: "Map" },
+    { key: "connections", label: "Connections" },
+    { key: "positions", label: "Positions" },
+    { key: "claims", label: "Claims" },
+    { key: "activity", label: "Activity" },
+  ];
+  
+  // Gérer le changement d'onglet
+  const handleTabChange = (tabKey) => {
+    setActiveTab(tabKey);
+    setDrawerOpen(!!tabKey);
+  };
+
+  // Générer le contenu du drawer en fonction de l'onglet actif
+  const getDrawerContent = () => {
+    switch (activeTab) {
+      case "claims":
+        return (
+          <>
+            <h2>Claims</h2>
+            {claims.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucun claim trouvé.</p>
+            ) : (
+              <div>
+                {claims.map((claim) => (
+                  <ClaimCard key={claim.id} claim={claim} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      case "positions":
+        return (
+          <>
+            <h2>Positions</h2>
+            {positions.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucune position trouvée.</p>
+            ) : (
+              <div>
+                {positions.map((position) => (
+                  <PositionCard key={position.id} position={position} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      case "activity":
+        return (
+          <>
+            <h2>Activity</h2>
+            <p>Contenu activity ici...</p>
+          </>
+        );
+      case "connections":
+        return (
+          <>
+            <h2>Connections</h2>
+            <p>Contenu connections ici...</p>
+          </>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Contenu du sidebar
+  const sidebarContent = (
+    <>
+      <h2>Mon Profil</h2>
+      <p>Nom : Utilisateur de base</p>
+      <p>Email : user@email.com</p>
+      <p>Rôle : Joueur</p>
       <button
-        className="navigation-button"
-        onClick={goBack}
         style={{
-          position: "absolute",
-          top: "110px",
-          left: "10px",
-          width: "70px",
-          zIndex: 50,
+          background: "#ffd32a",
+          color: "#18181b",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 18px",
+          fontWeight: "bold",
+          marginTop: 20,
+          cursor: "pointer",
         }}
-        disabled={currentHistoryIndex <= 0}
+        onClick={() => setSidebarOpen(false)}
       >
-        Previous
+        Fermer
       </button>
-      <button
-        className="navigation-button"
-        onClick={goForward}
+    </>
+  );
+
+  // Composant de sélection du type de graphique
+  const GraphTypeSelector = () => (
+    <div 
+      style={{
+        display: "none",
+        alignItems: "center",
+        backgroundColor: "#27272a",
+        padding: "8px 12px",
+        borderRadius: 8,
+        marginLeft: 12,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+      }}
+    >
+      <span style={{ color: "white", marginRight: 10, fontSize: 14 }}>Graph Type:</span>
+      <select 
+        value={graphType}
+        onChange={(e) => setGraphType(e.target.value)}
         style={{
-          position: "absolute",
-          top: "110px",
-          left: "83px",
-          width: "70px",
-          zIndex: 50,
+          backgroundColor: "#3f3f46",
+          color: "white",
+          border: "none",
+          padding: "4px 8px",
+          borderRadius: 4,
+          cursor: "pointer"
         }}
-        disabled={currentHistoryIndex >= graphHistory.length - 1}
       >
-        Next
-      </button>
+        <option value="base">Base</option>
+        <option value="agent">Agent</option>
+      </select>
+    </div>
+  );
+
+  return (
+    <div 
+      ref={containerRef}
+      className="graph-visualization-container"
+      style={{ 
+        position: "relative", 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        width: "100%",
+        height: "100vh",
+        overflow: "hidden"
+      }}
+    >
+      {(isLoading || isSearching) && <LoadingAnimation />}
+
+      <NavigationBar
+        onReset={resetGraph}
+        onBack={goBack}
+        onForward={goForward}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onMyView={() => {
+          setSidebarOpen(true);
+        }}
+      />
 
       <div
+        className="agent-navbar"
         style={{
           position: "absolute",
           top: "10px",
           right: "10px",
           zIndex: 10,
           display: "flex",
+          flexDirection: "row",
           alignItems: "center",
-          gap: "10px",
-          background: "#444",
-          color: "black",
-          padding: "10px",
-          borderRadius: "4px",
+          gap: "16px",
         }}
       >
-        <label htmlFor="viewMode" style={{ fontSize: "14px" }}>
-          View Mode:
-        </label>
-        <select
-          id="viewMode"
-          value={viewMode}
-          onChange={(e) => setViewMode(e.target.value)}
-          style={{
-            padding: "5px",
-            borderRadius: "4px",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          <option value="2D">2D</option>
-          <option value="3D">3D</option>
-          <option value="VR">VR</option>
-        </select>
-
-        <label style={{ fontSize: "14px", marginLeft: "10px" }}>
-          Show Creators
-          <input
-            type="checkbox"
-            checked={showCreators}
-            onChange={(e) => setShowCreators(e.target.checked)}
-            style={{ marginLeft: "8px" }}
-          />
-        </label>
-        {/* Filtres alignés horizontalement sous l'endpoint */}
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <input
-            type="text"
-            value={subjectFilter}
-            onChange={(e) => handleSearchInput("subject", e.target.value)}
-            placeholder="Subject"
+        <GraphTypeSelector />
+        
+        {!filtersOpen && (
+          <button
             style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
+              background: "#ffd32a",
+              color: "#18181b",
+              border: "none",
+              borderRadius: 12,
+              width: 120,
+              height: 40,
+              fontSize: 15,
+              fontWeight: "bold",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+              cursor: "pointer",
+              textTransform: "uppercase",
+              marginLeft: 12,
+              transition: "background 0.2s, color 0.2s, transform 0.1s",
             }}
-          />
-          <input
-            type="text"
-            value={predicateFilter}
-            onChange={(e) => handleSearchInput("predicate", e.target.value)}
-            placeholder="Predicate"
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#ffe066")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#ffd32a")}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            Filters
+          </button>
+        )}
+        {filtersOpen && (
+          <div
             style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
+              marginLeft: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              position: "relative",
             }}
-          />
-          <input
-            type="text"
-            value={objectFilter}
-            onChange={(e) => handleSearchInput("object", e.target.value)}
-            placeholder="Object"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-        </div>
+          >
+            <ViewModeSelector
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                position: "relative",
+              }}
+            >
+              <button
+                onClick={() => setFiltersOpen(false)}
+                style={{
+                  position: "absolute",
+                  top: -20,
+                  right: -16,
+                  background: "none",
+                  border: "none",
+                  color: "#ffd32a",
+                  fontSize: 20,
+                  cursor: "pointer",
+                  zIndex: 2,
+                  padding: 0,
+                  lineHeight: 1,
+                  width: 24,
+                  height: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Fermer les filtres"
+              >
+                ×
+              </button>
+              <FilterBar
+                subjectFilter={subjectFilter}
+                objectFilter={objectFilter}
+                onFilterChange={handleFilterChange}
+                onReset={resetGraph}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {viewMode === "2D" && (
-        <ForceGraph2D
-          ref={(el) => (fgRef.current = el)}
+        <Graph2D
           graphData={graphData}
-          nodeCanvasObject={(node, ctx, globalScale) => {
-            const label = node.label || "";
-            const fontSize = 12 / globalScale;
-            ctx.font = `${fontSize}px Sans-Serif`;
-
-            const textWidth = ctx.measureText(label).width;
-            const padding = 10 / globalScale;
-            const radius = 5 / globalScale;
-
-            ctx.fillStyle = node.color + "CC";
-            const x = node.x - textWidth / 2 - padding;
-            const y = node.y - fontSize / 2 - padding;
-            const width = textWidth + padding * 2;
-            const height = fontSize + padding * 2;
-            const bckgDimensions = [width, height];
-
-            ctx.beginPath();
-            ctx.arc(x + radius, y + radius, radius, Math.PI, 1.5 * Math.PI);
-            ctx.arc(
-              x + width - radius,
-              y + radius,
-              radius,
-              1.5 * Math.PI,
-              2 * Math.PI
-            );
-            ctx.arc(
-              x + width - radius,
-              y + height - radius,
-              radius,
-              0,
-              0.5 * Math.PI
-            );
-            ctx.arc(
-              x + radius,
-              y + height - radius,
-              radius,
-              0.5 * Math.PI,
-              Math.PI
-            );
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.fillStyle = "#fff";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(label, node.x, node.y);
-
-            node.__bckgDimensions = bckgDimensions;
+          onNodeClick={(node) => {
+            console.log("2D Node clicked:", node);
+            handleNodeClick(node, fgRef, viewMode);
           }}
-          nodePointerAreaPaint={(node, color, ctx) => {
-            ctx.fillStyle = color;
-            const bckgDimensions = node.__bckgDimensions;
-            bckgDimensions &&
-              ctx.fillRect(
-                node.x - bckgDimensions[0] / 2,
-                node.y - bckgDimensions[1] / 2,
-                ...bckgDimensions
-              );
-          }}
-          linkColor={() => "#666"}
-          linkDirectionalParticles={1}
-          linkDirectionalParticleSpeed={0.02}
-          linkDirectionalParticleColor={() => "#fff"}
-          nodeAutoColorBy="type"
-          onNodeClick={handleNodeClick}
           onEngineStop={handleEngineStop}
-        />
+          fgRef={fgRef}
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          drawerOpen={drawerOpen}
+          drawerContent={getDrawerContent()}
+          onDrawerClose={() => {
+            setDrawerOpen(false);
+            setActiveTab(null);
+          }}
+          sidebarOpen={sidebarOpen}
+          sidebarContent={sidebarContent}
+          onSidebarClose={() => setSidebarOpen(false)}
+          selectedTriple={selectedTriple}
+          endpoint={endpoint}
+        >
+          <GraphLegend />
+        </Graph2D>
       )}
 
       {viewMode === "3D" && (
-        <ForceGraph3D
-          ref={(el) => (fgRef.current = el)}
+        <Graph3D
           graphData={graphData}
-          controlType="fly"
-          nodeLabel="label"
-          onNodeClick={handleNodeClick}
-          linkColor={() => "#666"}
-          linkDirectionalParticles={2}
-          linkDirectionalParticleSpeed={0.005}
-          nodeAutoColorBy="type"
-          nodeThreeObject={(node) => {
-            const sprite = new SpriteText(node.label || "");
-            sprite.borderRadius = 1;
-            sprite.backgroundColor = node.color + "CC";
-            sprite.padding = 1;
-            sprite.color = "#fff";
-            sprite.textHeight = 2;
-            return sprite;
+          onNodeClick={(node) => {
+            console.log("3D Node clicked:", node);
+            handleNodeClick(node, fgRef, viewMode);
           }}
           onEngineStop={handleEngineStop}
-        />
+          fgRef={fgRef}
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          drawerOpen={drawerOpen}
+          drawerContent={getDrawerContent()}
+          onDrawerClose={() => {
+            setDrawerOpen(false);
+            setActiveTab(null);
+          }}
+          sidebarOpen={sidebarOpen}
+          sidebarContent={sidebarContent}
+          onSidebarClose={() => setSidebarOpen(false)}
+          selectedTriple={selectedTriple}
+          endpoint={endpoint}
+        >
+          <GraphLegend />
+        </Graph3D>
       )}
 
       {viewMode === "VR" && (
         <GraphVR
           graphData={graphData}
-          onNodeClick={handleNodeClick}
+          onNodeClick={(node) => {
+            console.log("VR Node clicked:", node);
+            handleNodeClick(node, fgRef, viewMode);
+          }}
           onBack={goBack}
           onForward={goForward}
           selectedTriple={selectedTriple}
-        />
-      )}
-
-      <GraphLegend showCreators={showCreators} />
-
-      {selectedTriple && (
-        <NodeDetailsSidebar
-          triple={selectedTriple}
           endpoint={endpoint}
-          onClose={() => setSelectedTriple(null)}
         />
       )}
+
+      <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+        <h2>Mon Profil</h2>
+        <p>Nom : Utilisateur de base</p>
+        <p>Email : user@email.com</p>
+        <p>Rôle : Joueur</p>
+        <button
+          style={{
+            background: "#ffd32a",
+            color: "#18181b",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 18px",
+            fontWeight: "bold",
+            marginTop: 20,
+            cursor: "pointer",
+          }}
+          onClick={() => setSidebarOpen(false)}
+        >
+          Fermer
+        </button>
+      </SidebarDrawer>
+
+      <Drawer
+        open={!!drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false);
+          setActiveTab(null);
+        }}
+      >
+        {activeTab === "claims" && (
+          <>
+            <h2>Claims</h2>
+            {claims.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucun claim trouvé.</p>
+            ) : (
+              <div>
+                {claims.map((claim) => (
+                  <ClaimCard key={claim.id} claim={claim} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {activeTab === "positions" && (
+          <>
+            <h2>Positions</h2>
+            {positions.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucune position trouvée.</p>
+            ) : (
+              <div>
+                {positions.map((position) => (
+                  <PositionCard key={position.id} position={position} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {activeTab === "activity" && (
+          <>
+            <h2>Activity</h2>
+            <p>Contenu activity ici...</p>
+          </>
+        )}
+        {activeTab === "connections" && (
+          <>
+            <h2>Connections</h2>
+            <p>Contenu connections ici...</p>
+          </>
+        )}
+      </Drawer>
     </div>
   );
 };
