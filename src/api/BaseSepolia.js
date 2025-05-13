@@ -3,7 +3,7 @@ import { gql, GraphQLClient } from "graphql-request";
 // Hardcoded Endpoints with display names
 export const ENDPOINTS = {
   baseSepolia: {
-    url: " https://dev.base-sepolia.intuition-api.com/v1/graphql",
+    url: "https://dev.base-sepolia.intuition-api.com/v1/graphql",
     displayName: "Base Testnet",
   },
 };
@@ -265,5 +265,3 @@ export const fetchTriplesByCreator = async (
   const data = await client.request(query, variables);
   return data.triples;
 };
-
-test

@@ -19,6 +19,7 @@ const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
 
 const GraphVisualization = ({ endpoint }) => {
   const fgRef = useRef();
+  const containerRef = useRef();
   const [viewMode, setViewMode] = React.useState("2D");
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
@@ -79,8 +80,113 @@ const GraphVisualization = ({ endpoint }) => {
     }
   }, [drawerOpen, activeTab, endpoint]);
 
+  // Définir les onglets pour la barre de navigation
+  const tabs = [
+    { key: null, label: "Map" },
+    { key: "connections", label: "Connections" },
+    { key: "positions", label: "Positions" },
+    { key: "claims", label: "Claims" },
+    { key: "activity", label: "Activity" },
+  ];
+  
+  // Gérer le changement d'onglet
+  const handleTabChange = (tabKey) => {
+    setActiveTab(tabKey);
+    setDrawerOpen(!!tabKey);
+  };
+
+  // Générer le contenu du drawer en fonction de l'onglet actif
+  const getDrawerContent = () => {
+    switch (activeTab) {
+      case "claims":
+        return (
+          <>
+            <h2>Claims</h2>
+            {claims.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucun claim trouvé.</p>
+            ) : (
+              <div>
+                {claims.map((claim) => (
+                  <ClaimCard key={claim.id} claim={claim} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      case "positions":
+        return (
+          <>
+            <h2>Positions</h2>
+            {positions.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucune position trouvée.</p>
+            ) : (
+              <div>
+                {positions.map((position) => (
+                  <PositionCard key={position.id} position={position} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      case "activity":
+        return (
+          <>
+            <h2>Activity</h2>
+            <p>Contenu activity ici...</p>
+          </>
+        );
+      case "connections":
+        return (
+          <>
+            <h2>Connections</h2>
+            <p>Contenu connections ici...</p>
+          </>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Contenu du sidebar
+  const sidebarContent = (
+    <>
+      <h2>Mon Profil</h2>
+      <p>Nom : Utilisateur de base</p>
+      <p>Email : user@email.com</p>
+      <p>Rôle : Joueur</p>
+      <button
+        style={{
+          background: "#ffd32a",
+          color: "#18181b",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 18px",
+          fontWeight: "bold",
+          marginTop: 20,
+          cursor: "pointer",
+        }}
+        onClick={() => setSidebarOpen(false)}
+      >
+        Fermer
+      </button>
+    </>
+  );
+
   return (
-    <div>
+    <div 
+      ref={containerRef}
+      className="graph-visualization-container"
+      style={{ 
+        position: "relative", 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        width: "100%",
+        height: "100vh",
+        overflow: "hidden"
+      }}
+    >
       {(isLoading || isSearching) && <LoadingAnimation />}
 
       <NavigationBar
@@ -191,38 +297,70 @@ const GraphVisualization = ({ endpoint }) => {
       {viewMode === "2D" && (
         <Graph2D
           graphData={graphData}
-          onNodeClick={(node) => handleNodeClick(node, fgRef, viewMode)}
+          onNodeClick={(node) => {
+            console.log("2D Node clicked:", node);
+            handleNodeClick(node, fgRef, viewMode);
+          }}
           onEngineStop={handleEngineStop}
           fgRef={fgRef}
-        />
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          drawerOpen={drawerOpen}
+          drawerContent={getDrawerContent()}
+          onDrawerClose={() => {
+            setDrawerOpen(false);
+            setActiveTab(null);
+          }}
+          sidebarOpen={sidebarOpen}
+          sidebarContent={sidebarContent}
+          onSidebarClose={() => setSidebarOpen(false)}
+          selectedTriple={selectedTriple}
+          endpoint={endpoint}
+        >
+          <GraphLegend />
+        </Graph2D>
       )}
 
       {viewMode === "3D" && (
         <Graph3D
           graphData={graphData}
-          onNodeClick={(node) => handleNodeClick(node, fgRef, viewMode)}
+          onNodeClick={(node) => {
+            console.log("3D Node clicked:", node);
+            handleNodeClick(node, fgRef, viewMode);
+          }}
           onEngineStop={handleEngineStop}
           fgRef={fgRef}
-        />
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          drawerOpen={drawerOpen}
+          drawerContent={getDrawerContent()}
+          onDrawerClose={() => {
+            setDrawerOpen(false);
+            setActiveTab(null);
+          }}
+          sidebarOpen={sidebarOpen}
+          sidebarContent={sidebarContent}
+          onSidebarClose={() => setSidebarOpen(false)}
+          selectedTriple={selectedTriple}
+          endpoint={endpoint}
+        >
+          <GraphLegend />
+        </Graph3D>
       )}
 
       {viewMode === "VR" && (
         <GraphVR
           graphData={graphData}
-          onNodeClick={(node) => handleNodeClick(node, fgRef, viewMode)}
+          onNodeClick={(node) => {
+            console.log("VR Node clicked:", node);
+            handleNodeClick(node, fgRef, viewMode);
+          }}
           onBack={goBack}
           onForward={goForward}
           selectedTriple={selectedTriple}
-        />
-      )}
-
-      <GraphLegend />
-
-      {selectedTriple && (
-        <NodeDetailsSidebar
-          triple={selectedTriple}
           endpoint={endpoint}
-          onClose={() => setSelectedTriple(null)}
         />
       )}
 
@@ -248,67 +386,6 @@ const GraphVisualization = ({ endpoint }) => {
         </button>
       </SidebarDrawer>
 
-      {/* Barre de navigation en bas façon tabs */}
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 2000,
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 36,
-          padding: "0 0 4px 0",
-          height: 54,
-        }}
-      >
-        {[
-          { key: null, label: "Map" },
-          { key: "connections", label: "Connections" },
-          { key: "positions", label: "Positions" },
-          { key: "claims", label: "Claims" },
-          { key: "activity", label: "Activity" },
-        ].map((tab) => (
-          <div
-            key={tab.key || "map"}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              cursor: "pointer",
-              minWidth: 120,
-            }}
-            onClick={() => {
-              setActiveTab(tab.key);
-              setDrawerOpen(!!tab.key);
-            }}
-          >
-            <span
-              style={{
-                color: activeTab === tab.key ? "#ffd32a" : "#fff",
-                fontWeight: activeTab === tab.key ? "bold" : "normal",
-                fontSize: 17,
-                letterSpacing: 0.5,
-                padding: "8px 0 2px 0",
-                transition: "color 0.2s, font-weight 0.2s",
-              }}
-            >
-              {tab.label}
-            </span>
-            <div
-              style={{
-                height: 3,
-                width: "80%",
-                background: activeTab === tab.key ? "#ffd32a" : "transparent",
-                borderRadius: 2,
-                transition: "background 0.2s",
-              }}
-            />
-          </div>
-        ))}
-      </div>
       <Drawer
         open={!!drawerOpen}
         onClose={() => {

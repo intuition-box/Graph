@@ -28,12 +28,24 @@
 }
 
 /* Graph container takes full size of main area */
-.App-main > div {
+.App-main>div {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+}
+
+/* Graph visualization container */
+.graph-visualization-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Canvas styling */
@@ -74,10 +86,12 @@ canvas {
   width: 150px;
   display: block;
 }
+
 .agent-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
 .agent-btn:hover:not(:disabled) {
   background: #ffe066;
   color: #18181b;
@@ -131,6 +145,7 @@ canvas {
   cursor: pointer;
   transition: background 0.2s, color 0.2s, transform 0.1s;
 }
+
 .agent-navbar button:hover {
   background: #ffe066;
   color: #18181b;
@@ -179,7 +194,7 @@ canvas {
 
 /* Drawer styles */
 .drawer-backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
   opacity: 0;
@@ -187,13 +202,14 @@ canvas {
   transition: opacity 0.25s;
   z-index: 1200;
 }
+
 .drawer-backdrop.open {
   opacity: 1;
   pointer-events: auto;
 }
 
 .drawer-panel {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
@@ -213,9 +229,11 @@ canvas {
   flex-direction: column;
   overflow: hidden;
 }
+
 .drawer-panel.open {
   transform: translateY(0);
 }
+
 .drawer-close-btn {
   background: none;
   border: none;
@@ -228,9 +246,11 @@ canvas {
   z-index: 2;
   transition: color 0.2s;
 }
+
 .drawer-close-btn:hover {
   color: #ffe066;
 }
+
 .drawer-content {
   padding: 48px 24px 24px 24px;
   overflow-y: auto;
@@ -239,7 +259,7 @@ canvas {
 
 /* SidebarDrawer styles */
 .sidebar-drawer-panel {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
@@ -258,6 +278,7 @@ canvas {
   flex-direction: column;
   overflow: hidden;
 }
+
 .sidebar-drawer-panel.open {
   transform: translateX(0);
 }

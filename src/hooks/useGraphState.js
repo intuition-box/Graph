@@ -42,9 +42,14 @@ export const useGraphState = (endpoint) => {
 
   const handleNodeClick = useCallback(
     async (node, fgRef, viewMode) => {
+      if (node === null) {
+        setSelectedTriple(null);
+        return;
+      }
+
       setSelectedTriple(node);
 
-      if (fgRef.current) {
+      if (fgRef && fgRef.current) {
         try {
           const nodePosition = {
             x: node.x,
