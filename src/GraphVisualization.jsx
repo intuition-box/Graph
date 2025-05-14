@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
@@ -11,14 +11,17 @@ import ViewModeSelector from "./ViewModeSelector";
 import { useGraphState } from "./hooks/useGraphState";
 import Drawer from "./components/Drawer";
 import SidebarDrawer from "./components/SidebarDrawer";
-import { fetchClaimsByAccount, fetchTriplesByCreator } from "./api";
+import { fetchClaimsByAccount, fetchTriplesByCreator, searchTriples } from "./api";
 import ClaimCard from "./components/ClaimCard";
 import PositionCard from "./components/PositionCard";
+import SmartSearchInterface from "./components/SmartSearchInterface";
+import { transformToGraphData } from "./graphData";
+import ChatBox from "./components/ChatBox";
 
 const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
 const AGENT_OBJECT_ID = 24537; // À remplacer par l'ID réel de l'agent
 
-const GraphVisualization = ({ endpoint }) => {
+const GraphVisualization = ({ endpoint, walletAddress }) => {
   const fgRef = useRef();
   const containerRef = useRef();
   const [viewMode, setViewMode] = React.useState("2D");
@@ -28,14 +31,18 @@ const GraphVisualization = ({ endpoint }) => {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [claims, setClaims] = React.useState([]);
   const [positions, setPositions] = React.useState([]);
+  const [isSmartSearching, setIsSmartSearching] = useState(false);
+  const [isLocalSearching, setIsSearching] = useState(false);
+  const [useLocalData, setUseLocalData] = useState(false);
+  const [localGraphData, setLocalGraphData] = useState(null);
   const [graphType, setGraphType] = React.useState("agent");
 
   const {
-    graphData,
+    graphData: hookGraphData,
     isInitialLoad,
     selectedTriple,
     isLoading,
-    isSearching,
+    isSearching: hookIsSearching,
     subjectFilter,
     objectFilter,
     shouldSearch,
@@ -50,14 +57,27 @@ const GraphVisualization = ({ endpoint }) => {
     applyFilters,
     goBack,
     goForward,
+    setGraphData: hookSetGraphData,
+    graphHistory,
+    setGraphHistory,
+    currentHistoryIndex,
+    setCurrentHistoryIndex
   } = useGraphState(endpoint, graphType);
 
+  const graphData = useLocalData && localGraphData ? localGraphData : hookGraphData;
+  const isSearchingActive = isLocalSearching || hookIsSearching;
+
+  useEffect(() => {
+    console.log("GraphData updated:", graphData);
+  }, [graphData]);
+  
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData, graphType]);
 
   useEffect(() => {
     if (shouldSearch) {
+      setUseLocalData(false);
       applyFilters();
     }
   }, [shouldSearch, applyFilters]);
@@ -68,21 +88,74 @@ const GraphVisualization = ({ endpoint }) => {
     }
   };
 
-  // Charger les claims quand le drawer claims s'ouvre
   React.useEffect(() => {
     if (drawerOpen && activeTab === "claims") {
       fetchClaimsByAccount(ACCOUNT_ID, endpoint).then(setClaims);
     }
   }, [drawerOpen, activeTab, endpoint]);
 
-  // Charger les positions quand le drawer positions s'ouvre
   React.useEffect(() => {
     if (drawerOpen && activeTab === "positions") {
       fetchTriplesByCreator(ACCOUNT_ID, endpoint).then(setPositions);
     }
   }, [drawerOpen, activeTab, endpoint]);
 
-  // Définir les onglets pour la barre de navigation
+  const handleSearch = async (results) => {
+    console.log("Search results received:", results);
+    
+    try {
+      if (results && results.length > 0) {
+        if (graphHistory && setGraphHistory && typeof setGraphHistory === 'function') {
+          setGraphHistory((prevHistory) => {
+            const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+            updatedHistory.push({ graphData, selectedTriple: null });
+            return updatedHistory;
+          });
+          
+          if (typeof setCurrentHistoryIndex === 'function') {
+            setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
+          }
+        }
+        
+        const newGraphData = transformToGraphData(results);
+        console.log("New graph data created:", newGraphData);
+        
+        setLocalGraphData(newGraphData);
+        setUseLocalData(true);
+        console.log("Graph data updated");
+      } else {
+        console.log("No results found");
+        setLocalGraphData({ nodes: [], links: [] });
+        setUseLocalData(true);
+      }
+    } catch (error) {
+      console.error("Error in handleSearch:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchStart = () => {
+    console.log("Search starting...");
+    setIsSearching(true);
+  };
+
+  const handleFullReset = () => {
+    setUseLocalData(false);
+    resetGraph();
+  };
+
+  const handleSimpleFilterChange = (type, value) => {
+    setUseLocalData(false);
+    handleFilterChange(type, value);
+  };
+
+  const handleAfterSmartSearch = () => {
+    if (useLocalData) {
+      setUseLocalData(false);
+    }
+  };
+
   const tabs = [
     { key: null, label: "Map" },
     { key: "connections", label: "Connections" },
@@ -90,14 +163,12 @@ const GraphVisualization = ({ endpoint }) => {
     { key: "claims", label: "Claims" },
     { key: "activity", label: "Activity" },
   ];
-  
-  // Gérer le changement d'onglet
+
   const handleTabChange = (tabKey) => {
     setActiveTab(tabKey);
     setDrawerOpen(!!tabKey);
   };
 
-  // Générer le contenu du drawer en fonction de l'onglet actif
   const getDrawerContent = () => {
     switch (activeTab) {
       case "claims":
@@ -105,7 +176,7 @@ const GraphVisualization = ({ endpoint }) => {
           <>
             <h2>Claims</h2>
             {claims.length === 0 ? (
-              <p style={{ color: "#fff" }}>Aucun claim trouvé.</p>
+              <p style={{ color: "#fff" }}>No claims found.</p>
             ) : (
               <div>
                 {claims.map((claim) => (
@@ -120,7 +191,7 @@ const GraphVisualization = ({ endpoint }) => {
           <>
             <h2>Positions</h2>
             {positions.length === 0 ? (
-              <p style={{ color: "#fff" }}>Aucune position trouvée.</p>
+              <p style={{ color: "#fff" }}>No positions found.</p>
             ) : (
               <div>
                 {positions.map((position) => (
@@ -134,14 +205,14 @@ const GraphVisualization = ({ endpoint }) => {
         return (
           <>
             <h2>Activity</h2>
-            <p>Contenu activity ici...</p>
+            <p>Activity content here...</p>
           </>
         );
       case "connections":
         return (
           <>
             <h2>Connections</h2>
-            <p>Contenu connections ici...</p>
+            <p>Connections content here...</p>
           </>
         );
       default:
@@ -207,32 +278,58 @@ const GraphVisualization = ({ endpoint }) => {
   );
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="graph-visualization-container"
-      style={{ 
-        position: "relative", 
-        top: 0, 
-        left: 0, 
-        right: 0, 
+      style={{
+        position: "relative",
+        top: 0,
+        left: 0,
+        right: 0,
         bottom: 0,
         width: "100%",
         height: "100vh",
-        overflow: "hidden"
+        overflow: "hidden",
       }}
     >
-      {(isLoading || isSearching) && <LoadingAnimation />}
+      {(isLoading || isSearchingActive || isSmartSearching) && <LoadingAnimation />}
 
       <NavigationBar
-        onReset={resetGraph}
-        onBack={goBack}
-        onForward={goForward}
+        onReset={handleFullReset}
+        onBack={() => { handleAfterSmartSearch(); goBack(); }}
+        onForward={() => { handleAfterSmartSearch(); goForward(); }}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
         onMyView={() => {
           setSidebarOpen(true);
         }}
       />
+
+      <div style={{ 
+        position: "absolute", 
+        top: "10px",
+        left: "50%", 
+        transform: "translateX(-50%)",
+        zIndex: 1000,
+        width: "550px",
+        maxWidth: "calc(100% - 350px)"
+      }}>
+        <SmartSearchInterface
+          endpoint={endpoint}
+          onSearch={handleSearch}
+          isSearching={isSearchingActive}
+          onSearchStart={handleSearchStart}
+        />
+      </div>
+
+      <div style={{
+        position: "fixed", 
+        bottom: "10px", 
+        left: "10px", 
+        zIndex: 1000
+      }}>
+        <ChatBox walletAddress={walletAddress || "0x25d5C9DbC1E12163B973261A08739927E4F72BA7"} />
+      </div>
 
       <div
         className="agent-navbar"
@@ -315,15 +412,15 @@ const GraphVisualization = ({ endpoint }) => {
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                aria-label="Fermer les filtres"
+                aria-label="Close filters"
               >
                 ×
               </button>
               <FilterBar
                 subjectFilter={subjectFilter}
                 objectFilter={objectFilter}
-                onFilterChange={handleFilterChange}
-                onReset={resetGraph}
+                onFilterChange={handleSimpleFilterChange}
+                onReset={handleFullReset}
               />
             </div>
           </div>
@@ -334,7 +431,7 @@ const GraphVisualization = ({ endpoint }) => {
         <Graph2D
           graphData={graphData}
           onNodeClick={(node) => {
-            console.log("2D Node clicked:", node);
+            handleAfterSmartSearch();
             handleNodeClick(node, fgRef, viewMode);
           }}
           onEngineStop={handleEngineStop}
@@ -349,7 +446,29 @@ const GraphVisualization = ({ endpoint }) => {
             setActiveTab(null);
           }}
           sidebarOpen={sidebarOpen}
-          sidebarContent={sidebarContent}
+          sidebarContent={
+            <>
+              <h2>My Profile</h2>
+              <p>Name: Base User</p>
+              <p>Email: user@email.com</p>
+              <p>Role: Player</p>
+              <button
+                style={{
+                  background: "#ffd32a",
+                  color: "#18181b",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  fontWeight: "bold",
+                  marginTop: 20,
+                  cursor: "pointer",
+                }}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Close
+              </button>
+            </>
+          }
           onSidebarClose={() => setSidebarOpen(false)}
           selectedTriple={selectedTriple}
           endpoint={endpoint}
@@ -362,7 +481,7 @@ const GraphVisualization = ({ endpoint }) => {
         <Graph3D
           graphData={graphData}
           onNodeClick={(node) => {
-            console.log("3D Node clicked:", node);
+            handleAfterSmartSearch();
             handleNodeClick(node, fgRef, viewMode);
           }}
           onEngineStop={handleEngineStop}
@@ -377,7 +496,29 @@ const GraphVisualization = ({ endpoint }) => {
             setActiveTab(null);
           }}
           sidebarOpen={sidebarOpen}
-          sidebarContent={sidebarContent}
+          sidebarContent={
+            <>
+              <h2>My Profile</h2>
+              <p>Name: Base User</p>
+              <p>Email: user@email.com</p>
+              <p>Role: Player</p>
+              <button
+                style={{
+                  background: "#ffd32a",
+                  color: "#18181b",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  fontWeight: "bold",
+                  marginTop: 20,
+                  cursor: "pointer",
+                }}
+                onClick={() => setSidebarOpen(false)}
+              >
+                Close
+              </button>
+            </>
+          }
           onSidebarClose={() => setSidebarOpen(false)}
           selectedTriple={selectedTriple}
           endpoint={endpoint}
@@ -390,21 +531,21 @@ const GraphVisualization = ({ endpoint }) => {
         <GraphVR
           graphData={graphData}
           onNodeClick={(node) => {
-            console.log("VR Node clicked:", node);
+            handleAfterSmartSearch();
             handleNodeClick(node, fgRef, viewMode);
           }}
-          onBack={goBack}
-          onForward={goForward}
+          onBack={() => { handleAfterSmartSearch(); goBack(); }}
+          onForward={() => { handleAfterSmartSearch(); goForward(); }}
           selectedTriple={selectedTriple}
           endpoint={endpoint}
         />
       )}
 
       <SidebarDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-        <h2>Mon Profil</h2>
-        <p>Nom : Utilisateur de base</p>
-        <p>Email : user@email.com</p>
-        <p>Rôle : Joueur</p>
+        <h2>My Profile</h2>
+        <p>Name: Base User</p>
+        <p>Email: user@email.com</p>
+        <p>Role: Player</p>
         <button
           style={{
             background: "#ffd32a",
@@ -418,7 +559,7 @@ const GraphVisualization = ({ endpoint }) => {
           }}
           onClick={() => setSidebarOpen(false)}
         >
-          Fermer
+          Close
         </button>
       </SidebarDrawer>
 
@@ -429,46 +570,7 @@ const GraphVisualization = ({ endpoint }) => {
           setActiveTab(null);
         }}
       >
-        {activeTab === "claims" && (
-          <>
-            <h2>Claims</h2>
-            {claims.length === 0 ? (
-              <p style={{ color: "#fff" }}>Aucun claim trouvé.</p>
-            ) : (
-              <div>
-                {claims.map((claim) => (
-                  <ClaimCard key={claim.id} claim={claim} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        {activeTab === "positions" && (
-          <>
-            <h2>Positions</h2>
-            {positions.length === 0 ? (
-              <p style={{ color: "#fff" }}>Aucune position trouvée.</p>
-            ) : (
-              <div>
-                {positions.map((position) => (
-                  <PositionCard key={position.id} position={position} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-        {activeTab === "activity" && (
-          <>
-            <h2>Activity</h2>
-            <p>Contenu activity ici...</p>
-          </>
-        )}
-        {activeTab === "connections" && (
-          <>
-            <h2>Connections</h2>
-            <p>Contenu connections ici...</p>
-          </>
-        )}
+        {getDrawerContent()}
       </Drawer>
     </div>
   );

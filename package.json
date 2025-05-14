@@ -24,6 +24,7 @@
   ],
   "homepage": "https://graph.i7n.thp-lab.org",
   "dependencies": {
+    "axios": "^1.9.0",
     "d3": "^7.9.0",
     "d3-force-3d": "^3.0.5",
     "graphql": "^16.9.0",
