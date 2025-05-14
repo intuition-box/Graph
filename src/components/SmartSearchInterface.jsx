@@ -117,41 +117,33 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
       display: 'flex',
       width: '100%',
       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-      borderRadius: '8px',
+      borderRadius: '12px',
       overflow: 'hidden',
-      backgroundColor: 'rgba(30, 30, 40, 0.6)', // Semi-transparent dark background
+      backgroundColor: 'rgba(30, 30, 40, 0.6)',
       backdropFilter: 'blur(5px)',
       border: '1px solid rgba(255, 255, 255, 0.2)'
     },
     input: {
       flex: 1,
-      padding: '14px 18px',
-      fontSize: '16px',
+      padding: '10px 15px',
+      fontSize: '15px',
       border: 'none',
       backgroundColor: 'transparent',
       color: 'white',
       outline: 'none',
-      fontWeight: '400'
+      fontWeight: '400',
+      height: '40px'
     },
     inputPlaceholder: {
       color: 'rgba(255, 255, 255, 0.6)'
     },
     button: {
       padding: '0 22px',
-      backgroundColor: '#4A66E8', // Modern blue
-      color: 'white',
       border: 'none',
       cursor: 'pointer',
-      fontWeight: '600',
+      fontWeight: 'bold',
       fontSize: '15px',
-      transition: 'background-color 0.2s ease'
-    },
-    buttonHover: {
-      backgroundColor: '#5E79F3'
-    },
-    disabledButton: {
-      backgroundColor: 'rgba(74, 102, 232, 0.6)',
-      cursor: 'not-allowed'
+      textTransform: 'uppercase'
     },
     activeFilters: {
       display: 'flex',
@@ -186,7 +178,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
       boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
     },
     subjectChip: {
-      backgroundColor: `${NODE_COLORS.SUBJECT}cc` // More transparent version
+      backgroundColor: `${NODE_COLORS.SUBJECT}cc`
     },
     predicateChip: {
       backgroundColor: `${NODE_COLORS.PREDICATE}cc`
@@ -215,7 +207,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
     },
     clearButton: {
       padding: '4px 10px',
-      backgroundColor: 'rgba(255, 70, 70, 0.8)', // More transparent red
+      backgroundColor: 'rgba(255, 70, 70, 0.8)',
       color: 'white',
       border: 'none',
       borderRadius: '16px',
@@ -292,7 +284,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
       backgroundColor: 'rgba(80, 120, 220, 0.45)'
     },
     subjectSuggestion: {
-      backgroundColor: `${NODE_COLORS.SUBJECT}cc`, // Same color as filter chips
+      backgroundColor: `${NODE_COLORS.SUBJECT}cc`,
       border: 'none'
     },
     predicateSuggestion: {
@@ -359,9 +351,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search for triples..."
-          style={{
-            ...styles.input,
-          }}
+          style={styles.input}
           onFocus={() => setShowSuggestions(true)}
         />
         <button 
@@ -369,11 +359,15 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
           disabled={graphIsSearching}
           style={{
             ...styles.button,
-            ...(buttonHover && !graphIsSearching ? styles.buttonHover : {}),
-            ...(graphIsSearching ? styles.disabledButton : {})
+            backgroundColor: "#ffd32a",
+            color: "#18181b",
+            height: '40px',
+            borderRadius: '0 12px 12px 0',
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            transition: "background 0.2s, color 0.2s, transform 0.1s"
           }}
-          onMouseEnter={() => setButtonHover(true)}
-          onMouseLeave={() => setButtonHover(false)}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#ffe066"}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#ffd32a"}
         >
           {graphIsSearching ? "Searching..." : "Search"}
         </button>

@@ -307,12 +307,12 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
 
       <div style={{ 
         position: "absolute", 
-        top: "70px", 
+        top: "10px",
         left: "50%", 
         transform: "translateX(-50%)",
         zIndex: 1000,
         width: "550px",
-        maxWidth: "90%" 
+        maxWidth: "calc(100% - 350px)"
       }}>
         <SmartSearchInterface
           endpoint={endpoint}
