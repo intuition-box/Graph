@@ -17,6 +17,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
     object: ""
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const searchTimeoutRef = useRef(null);
   const suggestionsRef = useRef(null);
 
@@ -44,22 +45,24 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
     if (query.length >= 2) {
       clearTimeout(searchTimeoutRef.current);
       
+      setIsLoadingSuggestions(true);
+      setShowSuggestions(true);
+      
       searchTimeoutRef.current = setTimeout(async () => {
         try {
           const smartSuggestions = await getSmartSuggestions(query, endpoint);
           setSuggestions(smartSuggestions);
-          setShowSuggestions(
-            smartSuggestions.subjects.length > 0 || 
-            smartSuggestions.predicates.length > 0 || 
-            smartSuggestions.objects.length > 0
-          );
+          setShowSuggestions(true);
+          setIsLoadingSuggestions(false);
         } catch (error) {
           console.error("Error retrieving suggestions:", error);
+          setIsLoadingSuggestions(false);
         }
       }, 300);
     } else {
       setSuggestions({ subjects: [], predicates: [], objects: [], triples: [] });
       setShowSuggestions(false);
+      setIsLoadingSuggestions(false);
     }
 
     return () => {
@@ -103,6 +106,11 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
   };
 
   const hasActiveFilters = selectedFilters.subject || selectedFilters.predicate || selectedFilters.object;
+  const hasSuggestions = 
+    suggestions.subjects.length > 0 || 
+    suggestions.predicates.length > 0 || 
+    suggestions.objects.length > 0 ||
+    (suggestions.triples && suggestions.triples.length > 0);
 
   // Modern inline styles with better contrast
   const styles = {
@@ -269,31 +277,25 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
       backgroundColor: '#4A66E8',
       color: 'white'
     },
-    tripleSuggestionItem: {
-      padding: '6px 12px',
-      borderRadius: '16px',
-      backgroundColor: 'rgba(80, 120, 220, 0.25)',
-      fontSize: '13px',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease',
-      color: 'rgba(255, 255, 255, 0.9)',
-      whiteSpace: 'normal',
-      lineHeight: '1.4'
+    loadingContainer: {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '25px',
     },
-    tripleSuggestionItemHover: {
-      backgroundColor: 'rgba(80, 120, 220, 0.45)'
+    loader: {
+      width: '30px',
+      height: '30px',
+      border: '3px solid rgba(255,255,255,0.2)',
+      borderRadius: '50%', 
+      borderTop: '3px solid #ffd32a',
+      animation: 'spin 1s linear infinite',
     },
-    subjectSuggestion: {
-      backgroundColor: `${NODE_COLORS.SUBJECT}cc`,
-      border: 'none'
-    },
-    predicateSuggestion: {
-      backgroundColor: `${NODE_COLORS.PREDICATE}cc`,
-      border: 'none'
-    },
-    objectSuggestion: {
-      backgroundColor: `${NODE_COLORS.OBJECT}cc`,
-      border: 'none'
+    noResults: {
+      padding: '25px',
+      textAlign: 'center',
+      fontSize: '14px',
+      color: 'rgba(255,255,255,0.7)',
     },
     tripleSuggestion: {
       padding: '8px 12px',
@@ -334,6 +336,24 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
       padding: '2px 6px',
       borderRadius: '4px',
       backgroundColor: `${NODE_COLORS.OBJECT}33`
+    },
+    subjectSuggestion: {
+      backgroundColor: NODE_COLORS.SUBJECT,
+      color: '#fff',
+      fontWeight: '500',
+      border: 'none'
+    },
+    predicateSuggestion: {
+      backgroundColor: NODE_COLORS.PREDICATE,
+      color: '#fff',
+      fontWeight: '500',
+      border: 'none'
+    },
+    objectSuggestion: {
+      backgroundColor: NODE_COLORS.OBJECT,
+      color: '#fff',
+      fontWeight: '500',
+      border: 'none'
     }
   };
 
@@ -345,6 +365,15 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
 
   return (
     <div style={styles.container}>
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+      
       <div style={styles.inputWrapper}>
         <input
           type="text"
@@ -352,7 +381,11 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search for triples..."
           style={styles.input}
-          onFocus={() => setShowSuggestions(true)}
+          onFocus={() => {
+            if (query.length >= 2) {
+              setShowSuggestions(true);
+            }
+          }}
         />
         <button 
           onClick={handleSearch} 
@@ -442,7 +475,19 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
       
       {showSuggestions && (
         <div style={styles.suggestionsContainer} ref={suggestionsRef}>
-          {suggestions.subjects.length > 0 && (
+          {isLoadingSuggestions && (
+            <div style={styles.loadingContainer}>
+              <div style={styles.loader}></div>
+            </div>
+          )}
+          
+          {!isLoadingSuggestions && !hasSuggestions && query.length >= 2 && (
+            <div style={styles.noResults}>
+              Aucune suggestion trouvée pour "{query}"
+            </div>
+          )}
+          
+          {!isLoadingSuggestions && suggestions.subjects.length > 0 && (
             <div style={styles.suggestionCategory}>
               <div style={styles.categoryHeader}>Suggested Subjects</div>
               <div style={styles.suggestionList}>
@@ -466,7 +511,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
             </div>
           )}
           
-          {suggestions.predicates.length > 0 && (
+          {!isLoadingSuggestions && suggestions.predicates.length > 0 && (
             <div style={styles.suggestionCategory}>
               <div style={styles.categoryHeader}>Suggested Predicates</div>
               <div style={styles.suggestionList}>
@@ -490,7 +535,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
             </div>
           )}
           
-          {suggestions.objects.length > 0 && (
+          {!isLoadingSuggestions && suggestions.objects.length > 0 && (
             <div style={styles.suggestionCategory}>
               <div style={styles.categoryHeader}>Suggested Objects</div>
               <div style={styles.suggestionList}>
@@ -514,7 +559,7 @@ const SmartSearchInterface = ({ endpoint, onSearch, isSearching, onSearchStart }
             </div>
           )}
           
-          {suggestions.triples && suggestions.triples.length > 0 && (
+          {!isLoadingSuggestions && suggestions.triples && suggestions.triples.length > 0 && (
             <div style={styles.suggestionCategory}>
               <div style={styles.categoryHeader}>Suggested Triples</div>
               <div style={styles.suggestionList}>
