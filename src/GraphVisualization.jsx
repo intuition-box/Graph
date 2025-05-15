@@ -132,20 +132,44 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
 
   const handleSearch = async (query, filters) => {
     try {
-      setLoading(true);
-      const results = await searchTriples(filters, endpoint);
+      setIsSearching(true);
+      console.log("Executing search with filters:", filters);
+      
+      // S'assurer que tous les filtres sont définis
+      const searchFilters = {
+        subject: filters.subject || "",
+        predicate: filters.predicate || "",
+        object: filters.object || ""
+      };
+      
+      const results = await searchTriples(searchFilters, endpoint);
+      console.log("Search results:", results);
 
       if (results && results.length > 0) {
         const newGraphData = transformToGraphData(results);
-        setGraphData(newGraphData);
+        console.log("New graph data:", newGraphData);
+        setUseLocalData(false);
+        hookSetGraphData(newGraphData);
+        
+        // Ajouter à l'historique
+        setGraphHistory((prevHistory) => {
+          const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+          updatedHistory.push({ 
+            graphData: newGraphData, 
+            selectedTriple: null,
+            filters: searchFilters // Sauvegarder les filtres dans l'historique
+          });
+          return updatedHistory;
+        });
+        setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
       } else {
-        setGraphData({ nodes: [], links: [] });
+        hookSetGraphData({ nodes: [], links: [] });
       }
     } catch (error) {
       console.error("Error in handleSearch:", error);
-      setGraphData({ nodes: [], links: [] });
+      hookSetGraphData({ nodes: [], links: [] });
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
   };
 

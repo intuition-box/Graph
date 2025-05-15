@@ -160,17 +160,7 @@ export const searchWithFilters = async (query, filters, endpoint = "base") => {
   try {
     let triples = await getCachedTriples(endpoint);
     
-    // Filtrer par requête générale (recherche dans tous les champs)
-    if (query) {
-      const lowerQuery = query.toLowerCase();
-      triples = triples.filter(triple => 
-        triple.subject.label.toLowerCase().includes(lowerQuery) ||
-        triple.predicate.label.toLowerCase().includes(lowerQuery) ||
-        triple.object.label.toLowerCase().includes(lowerQuery)
-      );
-    }
-    
-    // Appliquer les filtres spécifiques
+    // Appliquer les filtres spécifiques d'abord
     if (filters.subject) {
       triples = triples.filter(triple => 
         triple.subject.label.toLowerCase().includes(filters.subject.toLowerCase())
@@ -189,6 +179,17 @@ export const searchWithFilters = async (query, filters, endpoint = "base") => {
       );
     }
     
+    // Appliquer la recherche générale ensuite si une requête est fournie
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      triples = triples.filter(triple => 
+        triple.subject.label.toLowerCase().includes(lowerQuery) ||
+        triple.predicate.label.toLowerCase().includes(lowerQuery) ||
+        triple.object.label.toLowerCase().includes(lowerQuery)
+      );
+    }
+    
+    console.log("Filtered triples:", triples);
     return triples;
   } catch (error) {
     console.error("Erreur lors de la recherche avec filtres:", error);

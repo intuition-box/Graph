@@ -28,9 +28,6 @@ const SmartSearchInterface = ({
   const searchTimeoutRef = useRef(null);
   const suggestionsRef = useRef(null);
 
-  const { isSearching: graphIsSearching, setIsSearching: setGraphIsSearching } =
-    useGraphState(endpoint);
-
   // Handle clicks outside the suggestions container
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -83,11 +80,14 @@ const SmartSearchInterface = ({
 
   // Apply filter
   const applyFilter = (type, value) => {
+    console.log("Applying filter:", type, value);
     setSelectedFilters((prev) => {
-      if (prev[type] === value) {
-        return { ...prev, [type]: "" };
-      }
-      return { ...prev, [type]: value };
+      const newFilters = {
+        ...prev,
+        [type]: prev[type] === value ? "" : value
+      };
+      console.log("New filters:", newFilters);
+      return newFilters;
     });
   };
 
@@ -96,22 +96,24 @@ const SmartSearchInterface = ({
     // Signaler le début de la recherche
     if (typeof onSearchStart === "function") {
       onSearchStart();
-    } else {
-      console.warn("onSearchStart is not a function");
     }
 
     try {
+      const filters = {
+        subject: selectedFilters.subject || "",
+        predicate: selectedFilters.predicate || "",
+        object: selectedFilters.object || ""
+      };
+
       console.log("Searching with filters:", {
         query,
-        selectedFilters,
+        filters,
         endpoint,
       });
-      const results = await searchWithFilters(query, selectedFilters, endpoint);
-      console.log("Search results:", results);
 
-      // Passer les résultats au parent
+      // Appeler directement onSearch avec les filtres
       if (typeof onSearch === "function") {
-        onSearch(results);
+        await onSearch(query, filters);
       } else {
         console.error("onSearch is not a function");
       }
@@ -377,7 +379,7 @@ const SmartSearchInterface = ({
         />
         <button
           onClick={handleSearch}
-          disabled={graphIsSearching}
+          disabled={isSearching}
           style={{
             ...styles.button,
             backgroundColor: "#ffd32a",
@@ -394,7 +396,7 @@ const SmartSearchInterface = ({
             (e.currentTarget.style.backgroundColor = "#ffd32a")
           }
         >
-          {graphIsSearching ? "Searching..." : "Search"}
+          {isSearching ? "Searching..." : "Search"}
         </button>
       </div>
 
