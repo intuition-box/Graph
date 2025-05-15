@@ -186,17 +186,11 @@ const Graph3D = ({
         linkDirectionalParticleColor={() => "rgba(255,255,255,0.5)"}
         nodeAutoColorBy="type"
         nodeThreeObject={(node) => {
-          console.log("Rendu node 3D:", {
-            id: node.id,
-            image: node.image,
-            type: node.type,
-          });
           const size = 16;
           if (node.type === "object") {
             // --- Carré 2D (plan XY) ---
             const group = new THREE.Group();
             if (node.image) {
-              console.log("Tentative de rendu image 3D pour node:", node.id);
               // Canvas carré pour l'image
               const canvas = document.createElement("canvas");
               canvas.width = canvas.height = 128;
@@ -207,7 +201,6 @@ const Graph3D = ({
               img.crossOrigin = "anonymous";
               img.src = node.image;
               img.onload = () => {
-                console.log("Image 3D chargée avec succès:", node.image);
                 const ratio = Math.max(128 / img.width, 128 / img.height);
                 const w = img.width * ratio;
                 const h = img.height * ratio;

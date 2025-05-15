@@ -145,15 +145,9 @@ const Graph2D = ({
         width={dimensions.width}
         height={dimensions.height}
         nodeCanvasObject={(node, ctx, globalScale) => {
-          console.log("Rendu node 2D:", {
-            id: node.id,
-            image: node.image,
-            type: node.type,
-          });
           const size = (44 / globalScale) * Math.pow(globalScale, 0.15);
           if (node.type === "object") {
             if (node.image) {
-              console.log("Tentative de rendu image pour node:", node.id);
               ctx.save();
               ctx.beginPath();
               ctx.rect(node.x - size / 2, node.y - size / 2, size, size);
@@ -163,23 +157,13 @@ const Graph2D = ({
               ctx.stroke();
               ctx.clip();
               if (!node.__img) {
-                console.log("Chargement nouvelle image:", node.image);
                 const img = new window.Image();
                 img.crossOrigin = "anonymous";
                 img.src = node.image;
                 img.onload = () => {
-                  console.log("Image chargée avec succès:", node.image);
                   node.__imgLoaded = true;
                   if (fgRef && fgRef.current && fgRef.current.emit)
                     fgRef.current.emit("redraw");
-                };
-                img.onerror = (err) => {
-                  console.error(
-                    "Erreur chargement image:",
-                    err,
-                    "URL:",
-                    node.image
-                  );
                 };
                 node.__img = img;
                 node.__imgLoaded = false;
