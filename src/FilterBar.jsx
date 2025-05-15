@@ -25,8 +25,8 @@ const FilterBar = ({
         onClick={onClose}
         style={{
           position: "absolute",
-          top: 10,
-          right: 10,
+          top: 4,
+          right: 6,
           background: "none",
           border: "none",
           color: "#ffd32a",

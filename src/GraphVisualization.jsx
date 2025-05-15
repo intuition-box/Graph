@@ -478,30 +478,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
                 position: "relative",
               }}
             >
-              <button
-                onClick={() => setFiltersOpen(false)}
-                style={{
-                  position: "absolute",
-                  top: -20,
-                  right: -16,
-                  background: "none",
-                  border: "none",
-                  color: "#ffd32a",
-                  fontSize: 20,
-                  cursor: "pointer",
-                  zIndex: 2,
-                  padding: 0,
-                  lineHeight: 1,
-                  width: 24,
-                  height: 24,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                aria-label="Close filters"
-              >
-                ×
-              </button>
               <FilterBar
                 subjectFilter={subjectFilter}
                 predicateFilter={predicateFilter}
