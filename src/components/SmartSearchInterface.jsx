@@ -83,13 +83,11 @@ const SmartSearchInterface = ({
 
   // Apply filter
   const applyFilter = (type, value) => {
-    console.log("Applying filter:", type, value);
     setSelectedFilters((prev) => {
       const newFilters = {
         ...prev,
         [type]: prev[type] === value ? "" : value
       };
-      console.log("New filters:", newFilters);
       return newFilters;
     });
   };
@@ -108,20 +106,12 @@ const SmartSearchInterface = ({
         object: selectedFilters.object || ""
       };
 
-      console.log("Searching with filters:", {
-        query,
-        filters,
-        endpoint,
-      });
-
       // Appeler directement onSearch avec les filtres
       if (typeof onSearch === "function") {
         await onSearch(query, filters);
-      } else {
-        console.error("onSearch is not a function");
       }
     } catch (error) {
-      console.error("Error during search:", error);
+      // Gérer l'erreur silencieusement
     }
   };
 

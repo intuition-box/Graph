@@ -82,10 +82,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
   const isSearchingActive = isLocalSearching || hookIsSearching;
 
   useEffect(() => {
-    console.log("GraphData updated:", graphData);
-  }, [graphData]);
-
-  useEffect(() => {
     loadInitialData();
   }, [loadInitialData, graphType]);
 
@@ -101,10 +97,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       setIsInitialLoad(false);
     }
   };
-
-  React.useEffect(() => {
-    console.log("GraphData updated:", graphData);
-  }, [graphData]);
 
   React.useEffect(() => {
     if (drawerOpen && activeTab === "claims") {
@@ -133,7 +125,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
   const handleSearch = async (query, filters) => {
     try {
       setIsSearching(true);
-      console.log("Executing search with filters:", filters);
       
       // S'assurer que tous les filtres sont définis
       const searchFilters = {
@@ -143,11 +134,9 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       };
       
       const results = await searchTriples(searchFilters, endpoint);
-      console.log("Search results:", results);
 
       if (results && results.length > 0) {
         const newGraphData = transformToGraphData(results);
-        console.log("New graph data:", newGraphData);
         setUseLocalData(false);
         hookSetGraphData(newGraphData);
         
@@ -157,7 +146,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
           updatedHistory.push({ 
             graphData: newGraphData, 
             selectedTriple: null,
-            filters: searchFilters // Sauvegarder les filtres dans l'historique
+            filters: searchFilters
           });
           return updatedHistory;
         });
@@ -166,7 +155,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         hookSetGraphData({ nodes: [], links: [] });
       }
     } catch (error) {
-      console.error("Error in handleSearch:", error);
       hookSetGraphData({ nodes: [], links: [] });
     } finally {
       setIsSearching(false);
@@ -174,7 +162,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
   };
 
   const handleSearchStart = () => {
-    console.log("Search starting...");
     setIsSearching(true);
   };
 

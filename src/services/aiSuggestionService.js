@@ -66,7 +66,7 @@ export const getSmartSuggestions = async (query, endpoint = "base", limit = 10) 
         };
       }
     } catch (error) {
-      console.error("Erreur recherche pour mot court:", error);
+      // Gérer l'erreur silencieusement
     }
   }
 
@@ -240,7 +240,6 @@ export const getSmartSuggestions = async (query, endpoint = "base", limit = 10) 
       triples: apiTripleSuggestions
     };
   } catch (error) {
-    console.error("Erreur lors de la génération des suggestions:", error);
     return { subjects: [], predicates: [], objects: [], triples: [] };
   }
 };
@@ -277,7 +276,7 @@ export const searchWithFilters = async (query, filters, endpoint = "base") => {
           )];
         }
       } catch (error) {
-        console.error("Error searching for predicates:", error);
+        // Gérer l'erreur silencieusement
       }
       
       try {
@@ -289,7 +288,7 @@ export const searchWithFilters = async (query, filters, endpoint = "base") => {
           )];
         }
       } catch (error) {
-        console.error("Error searching for objects:", error);
+        // Gérer l'erreur silencieusement
       }
       
       return allResults;
@@ -297,7 +296,6 @@ export const searchWithFilters = async (query, filters, endpoint = "base") => {
     
     return await searchTriples(searchFilters, endpoint);
   } catch (error) {
-    console.error("Erreur lors de la recherche avec filtres:", error);
     return [];
   }
 };
