@@ -130,45 +130,22 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
     }
   }, [drawerOpen, activeTab, endpoint]);
 
-  const handleSearch = async (results) => {
-    console.log("Search results received:", results);
-
+  const handleSearch = async (query, filters) => {
     try {
+      setLoading(true);
+      const results = await searchTriples(filters, endpoint);
+
       if (results && results.length > 0) {
-        if (
-          graphHistory &&
-          setGraphHistory &&
-          typeof setGraphHistory === "function"
-        ) {
-          setGraphHistory((prevHistory) => {
-            const updatedHistory = prevHistory.slice(
-              0,
-              currentHistoryIndex + 1
-            );
-            updatedHistory.push({ graphData, selectedTriple: null });
-            return updatedHistory;
-          });
-
-          if (typeof setCurrentHistoryIndex === "function") {
-            setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
-          }
-        }
-
         const newGraphData = transformToGraphData(results);
-        console.log("New graph data created:", newGraphData);
-
-        setLocalGraphData(newGraphData);
-        setUseLocalData(true);
-        console.log("Graph data updated");
+        setGraphData(newGraphData);
       } else {
-        console.log("No results found");
-        setLocalGraphData({ nodes: [], links: [] });
-        setUseLocalData(true);
+        setGraphData({ nodes: [], links: [] });
       }
     } catch (error) {
       console.error("Error in handleSearch:", error);
+      setGraphData({ nodes: [], links: [] });
     } finally {
-      setIsSearching(false);
+      setLoading(false);
     }
   };
 
@@ -402,6 +379,17 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       <div
         style={{
           position: "absolute",
+          top: "80px",
+          left: "18px",
+          zIndex: 50,
+        }}
+      >
+        <ViewModeSelector viewMode={viewMode} onViewModeChange={setViewMode} />
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
           top: "10px",
           left: "50%",
           transform: "translateX(-50%)",
@@ -482,10 +470,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
               position: "relative",
             }}
           >
-            <ViewModeSelector
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
             <div
               style={{
                 display: "flex",
@@ -524,6 +508,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
                 objectFilter={objectFilter}
                 onFilterChange={handleSimpleFilterChange}
                 onReset={handleFullReset}
+                onClose={() => setFiltersOpen(false)}
               />
             </div>
           </div>

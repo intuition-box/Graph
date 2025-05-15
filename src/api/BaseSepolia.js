@@ -207,11 +207,8 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
     where: where._and.length > 0 ? where : {},
   };
 
-  console.log("Executing search query with variables:", variables);
-
   try {
     const data = await client.request(query, variables);
-    console.log("Search query response:", data);
     return data.triples;
   } catch (error) {
     console.error("Error executing search query:", error);
@@ -232,12 +229,26 @@ export const fetchClaimsByAccount = async (
         account_id
         counter_shares
         counter_vault_id
-        object_id
-        predicate_id
         shares
-        subject_id
         triple_id
         vault_id
+        subject {
+          id
+          label
+          type
+          image
+        }
+        predicate {
+          id
+          label
+          type
+        }
+        object {
+          id
+          label
+          type
+          image
+        }
       }
     }
   `;

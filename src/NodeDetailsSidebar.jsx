@@ -16,8 +16,6 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
 
     const fetchData = async () => {
       try {
-        console.log("Received triple:", triple);
-
         const response = await fetchTriples(endpoint);
         const filteredData = response.filter(
           (item) =>
@@ -29,12 +27,10 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
         setAdditionalData(filteredData);
 
         if (triple.id) {
-          console.log("Fetching atom details for ID:", triple.id);
           const atomData = await fetchAtomDetails(
             parseInt(triple.id),
             endpoint
           );
-          console.log("Received atom details:", atomData);
           setAtomDetails(atomData);
         }
       } catch (err) {
@@ -51,11 +47,8 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
   const formatShares = (shares) => `${(shares / 1e18).toFixed(4)} ETH`;
 
   if (!triple) {
-    console.log("No triple provided to sidebar");
     return null;
   }
-
-  console.log("Rendering sidebar with triple:", triple);
 
   return (
     <div
