@@ -11,12 +11,19 @@ import ViewModeSelector from "./ViewModeSelector";
 import { useGraphState } from "./hooks/useGraphState";
 import Drawer from "./components/Drawer";
 import SidebarDrawer from "./components/SidebarDrawer";
-import { fetchClaimsByAccount, fetchTriplesByCreator, searchTriples } from "./api";
+import {
+  fetchClaimsByAccount,
+  fetchPositionsByAccount,
+  searchTriples,
+  fetchFollowsAndFollowers,
+} from "./api";
 import ClaimCard from "./components/ClaimCard";
 import PositionCard from "./components/PositionCard";
+import ActivityCard from "./components/ActivityCard";
 import SmartSearchInterface from "./components/SmartSearchInterface";
 import { transformToGraphData } from "./graphData";
 import ChatBox from "./components/ChatBox";
+import FollowersCard from "./components/FollowersCard";
 
 const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
 const AGENT_OBJECT_ID = 24537; // À remplacer par l'ID réel de l'agent
@@ -31,11 +38,16 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [claims, setClaims] = React.useState([]);
   const [positions, setPositions] = React.useState([]);
+  const [activities, setActivities] = React.useState([]);
   const [isSmartSearching, setIsSmartSearching] = useState(false);
   const [isLocalSearching, setIsSearching] = useState(false);
   const [useLocalData, setUseLocalData] = useState(false);
   const [localGraphData, setLocalGraphData] = useState(null);
   const [graphType, setGraphType] = React.useState("agent");
+  const [connections, setConnections] = React.useState({
+    follows: [],
+    followers: [],
+  });
 
   const {
     graphData: hookGraphData,
@@ -44,6 +56,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
     isLoading,
     isSearching: hookIsSearching,
     subjectFilter,
+    predicateFilter,
     objectFilter,
     shouldSearch,
     canGoBack,
@@ -61,16 +74,17 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
     graphHistory,
     setGraphHistory,
     currentHistoryIndex,
-    setCurrentHistoryIndex
+    setCurrentHistoryIndex,
   } = useGraphState(endpoint, graphType);
 
-  const graphData = useLocalData && localGraphData ? localGraphData : hookGraphData;
+  const graphData =
+    useLocalData && localGraphData ? localGraphData : hookGraphData;
   const isSearchingActive = isLocalSearching || hookIsSearching;
 
   useEffect(() => {
     console.log("GraphData updated:", graphData);
   }, [graphData]);
-  
+
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData, graphType]);
@@ -89,6 +103,10 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
   };
 
   React.useEffect(() => {
+    console.log("GraphData updated:", graphData);
+  }, [graphData]);
+
+  React.useEffect(() => {
     if (drawerOpen && activeTab === "claims") {
       fetchClaimsByAccount(ACCOUNT_ID, endpoint).then(setClaims);
     }
@@ -96,30 +114,49 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
 
   React.useEffect(() => {
     if (drawerOpen && activeTab === "positions") {
-      fetchTriplesByCreator(ACCOUNT_ID, endpoint).then(setPositions);
+      fetchPositionsByAccount(ACCOUNT_ID, endpoint).then(setPositions);
+    }
+  }, [drawerOpen, activeTab, endpoint]);
+
+  React.useEffect(() => {
+    if (drawerOpen && activeTab === "activity") {
+      fetchPositionsByAccount(ACCOUNT_ID, endpoint).then(setActivities);
+    }
+  }, [drawerOpen, activeTab, endpoint]);
+
+  React.useEffect(() => {
+    if (drawerOpen && activeTab === "connections") {
+      fetchFollowsAndFollowers(4, ACCOUNT_ID, endpoint).then(setConnections);
     }
   }, [drawerOpen, activeTab, endpoint]);
 
   const handleSearch = async (results) => {
     console.log("Search results received:", results);
-    
+
     try {
       if (results && results.length > 0) {
-        if (graphHistory && setGraphHistory && typeof setGraphHistory === 'function') {
+        if (
+          graphHistory &&
+          setGraphHistory &&
+          typeof setGraphHistory === "function"
+        ) {
           setGraphHistory((prevHistory) => {
-            const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+            const updatedHistory = prevHistory.slice(
+              0,
+              currentHistoryIndex + 1
+            );
             updatedHistory.push({ graphData, selectedTriple: null });
             return updatedHistory;
           });
-          
-          if (typeof setCurrentHistoryIndex === 'function') {
+
+          if (typeof setCurrentHistoryIndex === "function") {
             setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
           }
         }
-        
+
         const newGraphData = transformToGraphData(results);
         console.log("New graph data created:", newGraphData);
-        
+
         setLocalGraphData(newGraphData);
         setUseLocalData(true);
         console.log("Graph data updated");
@@ -174,7 +211,16 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       case "claims":
         return (
           <>
-            <h2>Claims</h2>
+            <h2
+              style={{
+                fontSize: "2rem",
+                fontWeight: "bold",
+                color: "#ffd32a",
+                marginBottom: 18,
+              }}
+            >
+              Claims
+            </h2>
             {claims.length === 0 ? (
               <p style={{ color: "#fff" }}>No claims found.</p>
             ) : (
@@ -189,7 +235,16 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       case "positions":
         return (
           <>
-            <h2>Positions</h2>
+            <h2
+              style={{
+                fontSize: "2rem",
+                fontWeight: "bold",
+                color: "#ffd32a",
+                marginBottom: 18,
+              }}
+            >
+              Positions
+            </h2>
             {positions.length === 0 ? (
               <p style={{ color: "#fff" }}>No positions found.</p>
             ) : (
@@ -204,15 +259,44 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       case "activity":
         return (
           <>
-            <h2>Activity</h2>
-            <p>Activity content here...</p>
+            <h2
+              style={{
+                fontSize: "2rem",
+                fontWeight: "bold",
+                color: "#ffd32a",
+                marginBottom: 18,
+              }}
+            >
+              Activity
+            </h2>
+            {activities.length === 0 ? (
+              <p style={{ color: "#fff" }}>Aucune activité trouvée.</p>
+            ) : (
+              <div>
+                {activities.map((activity) => (
+                  <ActivityCard key={activity.id} position={activity} />
+                ))}
+              </div>
+            )}
           </>
         );
       case "connections":
         return (
           <>
-            <h2>Connections</h2>
-            <p>Connections content here...</p>
+            <h2
+              style={{
+                fontSize: "2rem",
+                fontWeight: "bold",
+                color: "#ffd32a",
+                marginBottom: 18,
+              }}
+            >
+              Connections
+            </h2>
+            <FollowersCard
+              follows={connections.follows || []}
+              followers={connections.followers || []}
+            />
           </>
         );
       default:
@@ -247,7 +331,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
 
   // Composant de sélection du type de graphique
   const GraphTypeSelector = () => (
-    <div 
+    <div
       style={{
         display: "none",
         alignItems: "center",
@@ -255,11 +339,13 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         padding: "8px 12px",
         borderRadius: 8,
         marginLeft: 12,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+        boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
       }}
     >
-      <span style={{ color: "white", marginRight: 10, fontSize: 14 }}>Graph Type:</span>
-      <select 
+      <span style={{ color: "white", marginRight: 10, fontSize: 14 }}>
+        Graph Type:
+      </span>
+      <select
         value={graphType}
         onChange={(e) => setGraphType(e.target.value)}
         style={{
@@ -268,7 +354,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
           border: "none",
           padding: "4px 8px",
           borderRadius: 4,
-          cursor: "pointer"
+          cursor: "pointer",
         }}
       >
         <option value="base">Base</option>
@@ -292,12 +378,20 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         overflow: "hidden",
       }}
     >
-      {(isLoading || isSearchingActive || isSmartSearching) && <LoadingAnimation />}
+      {(isLoading || isSearchingActive || isSmartSearching) && (
+        <LoadingAnimation />
+      )}
 
       <NavigationBar
         onReset={handleFullReset}
-        onBack={() => { handleAfterSmartSearch(); goBack(); }}
-        onForward={() => { handleAfterSmartSearch(); goForward(); }}
+        onBack={() => {
+          handleAfterSmartSearch();
+          goBack();
+        }}
+        onForward={() => {
+          handleAfterSmartSearch();
+          goForward();
+        }}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
         onMyView={() => {
@@ -305,15 +399,17 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         }}
       />
 
-      <div style={{ 
-        position: "absolute", 
-        top: "10px",
-        left: "50%", 
-        transform: "translateX(-50%)",
-        zIndex: 1000,
-        width: "550px",
-        maxWidth: "calc(100% - 350px)"
-      }}>
+      <div
+        style={{
+          position: "absolute",
+          top: "10px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 1000,
+          width: "550px",
+          maxWidth: "calc(100% - 350px)",
+        }}
+      >
         <SmartSearchInterface
           endpoint={endpoint}
           onSearch={handleSearch}
@@ -322,13 +418,19 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         />
       </div>
 
-      <div style={{
-        position: "fixed", 
-        bottom: "10px", 
-        left: "10px", 
-        zIndex: 1000
-      }}>
-        <ChatBox walletAddress={walletAddress || "0x25d5C9DbC1E12163B973261A08739927E4F72BA7"} />
+      <div
+        style={{
+          position: "fixed",
+          bottom: "10px",
+          left: "10px",
+          zIndex: 1000,
+        }}
+      >
+        <ChatBox
+          walletAddress={
+            walletAddress || "0x25d5C9DbC1E12163B973261A08739927E4F72BA7"
+          }
+        />
       </div>
 
       <div
@@ -345,7 +447,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         }}
       >
         <GraphTypeSelector />
-        
+
         {!filtersOpen && (
           <button
             style={{
@@ -418,6 +520,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
               </button>
               <FilterBar
                 subjectFilter={subjectFilter}
+                predicateFilter={predicateFilter}
                 objectFilter={objectFilter}
                 onFilterChange={handleSimpleFilterChange}
                 onReset={handleFullReset}
@@ -534,8 +637,14 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
             handleAfterSmartSearch();
             handleNodeClick(node, fgRef, viewMode);
           }}
-          onBack={() => { handleAfterSmartSearch(); goBack(); }}
-          onForward={() => { handleAfterSmartSearch(); goForward(); }}
+          onBack={() => {
+            handleAfterSmartSearch();
+            goBack();
+          }}
+          onForward={() => {
+            handleAfterSmartSearch();
+            goForward();
+          }}
           selectedTriple={selectedTriple}
           endpoint={endpoint}
         />
