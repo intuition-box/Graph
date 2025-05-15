@@ -1,5 +1,5 @@
 import axios from "axios";
-import { fetchTriples } from "../api";
+import { fetchTriples, searchTriples } from "../api";
 
 // Cache pour stocker les triples et éviter des appels API répétitifs
 let triplesCache = {
@@ -38,20 +38,140 @@ const getCachedTriples = async (endpoint) => {
 };
 
 // Fonction principale pour obtenir des suggestions intelligentes basées sur la saisie utilisateur
-export const getSmartSuggestions = async (query, endpoint = "base", limit = 5) => {
+export const getSmartSuggestions = async (query, endpoint = "base", limit = 10) => {
   if (!query || query.length < 2) {
     return { subjects: [], predicates: [], objects: [], triples: [] };
   }
 
   try {
-    // Récupérer les triples pour le contexte
-    const triples = await getCachedTriples(endpoint);
+    // Récupérer tous les triples d'abord
+    const allTriples = await getCachedTriples(endpoint);
+    console.log("Nombre total de triples dans le cache:", allTriples.length);
     
-    // Option 1: Approche locale (filtre simple sans IA)
-    return getLocalSuggestions(query, triples, limit);
+    const lowerQuery = query.toLowerCase();
     
-    // Option 2: Approche avec API IA (décommentez pour utiliser)
-    // return await getAISuggestions(query, triples, limit);
+    // Filtrer MANUELLEMENT tous les triples qui correspondent à la requête
+    // C'est plus fiable que de passer par l'API qui peut avoir des limitations
+    const matchingTriples = allTriples.filter(triple => 
+      (triple.subject && triple.subject.label && triple.subject.label.toLowerCase().includes(lowerQuery)) ||
+      (triple.predicate && triple.predicate.label && triple.predicate.label.toLowerCase().includes(lowerQuery)) ||
+      (triple.object && triple.object.label && triple.object.label.toLowerCase().includes(lowerQuery))
+    );
+    
+    console.log("Triples correspondant à la requête:", matchingTriples.length);
+    
+    // Si on a trouvé des correspondances manuellement, utiliser ces résultats
+    if (matchingTriples.length > 0) {
+      // Extraire les sujets uniques
+      const subjects = [...new Set(
+        matchingTriples
+          .filter(triple => triple.subject && triple.subject.label && 
+                 triple.subject.label.toLowerCase().includes(lowerQuery))
+          .map(triple => triple.subject.label)
+      )];
+      
+      // Extraire les prédicats uniques
+      const predicates = [...new Set(
+        matchingTriples
+          .filter(triple => triple.predicate && triple.predicate.label && 
+                 triple.predicate.label.toLowerCase().includes(lowerQuery))
+          .map(triple => triple.predicate.label)
+      )];
+      
+      // Extraire les objets uniques
+      const objects = [...new Set(
+        matchingTriples
+          .filter(triple => triple.object && triple.object.label && 
+                 triple.object.label.toLowerCase().includes(lowerQuery))
+          .map(triple => triple.object.label)
+      )];
+      
+      // Créer les triples pour les suggestions
+      const tripleSuggestions = matchingTriples
+        .map(triple => ({
+          subject: triple.subject.label,
+          predicate: triple.predicate.label,
+          object: triple.object.label
+        }))
+        .slice(0, limit);
+      
+      console.log("Sujets trouvés:", subjects.length);
+      console.log("Prédicats trouvés:", predicates.length);
+      console.log("Objets trouvés:", objects.length);
+      
+      return {
+        subjects: subjects.slice(0, limit),
+        predicates: predicates.slice(0, limit),
+        objects: objects.slice(0, limit),
+        triples: tripleSuggestions
+      };
+    }
+    
+    // Si la recherche manuelle ne donne rien, essayer par l'API
+    // (mais c'est peu probable que celle-ci donne de meilleurs résultats)
+    const filters = { subject: query };
+    const searchResults = await searchTriples(filters, endpoint);
+    
+    // Complément avec recherche par prédicat et objet
+    const predFilters = { predicate: query };
+    const predResults = await searchTriples(predFilters, endpoint);
+    
+    const objFilters = { object: query };
+    const objResults = await searchTriples(objFilters, endpoint);
+    
+    // Combiner tous les résultats
+    let combinedResults = [...(searchResults || [])];
+    
+    // Ajouter les résultats de prédicat s'ils existent
+    if (predResults && predResults.length > 0) {
+      combinedResults = [...combinedResults, ...predResults.filter(pr => 
+        !combinedResults.some(cr => cr.id === pr.id)
+      )];
+    }
+    
+    // Ajouter les résultats d'objet s'ils existent
+    if (objResults && objResults.length > 0) {
+      combinedResults = [...combinedResults, ...objResults.filter(or => 
+        !combinedResults.some(cr => cr.id === or.id)
+      )];
+    }
+    
+    // Extraire les suggestions de cette combinaison
+    const apiSubjects = [...new Set(
+      combinedResults
+        .filter(triple => triple.subject && triple.subject.label)
+        .map(triple => triple.subject.label)
+        .filter(label => label.toLowerCase().includes(lowerQuery))
+    )];
+    
+    const apiPredicates = [...new Set(
+      combinedResults
+        .filter(triple => triple.predicate && triple.predicate.label)
+        .map(triple => triple.predicate.label)
+        .filter(label => label.toLowerCase().includes(lowerQuery))
+    )];
+    
+    const apiObjects = [...new Set(
+      combinedResults
+        .filter(triple => triple.object && triple.object.label)
+        .map(triple => triple.object.label)
+        .filter(label => label.toLowerCase().includes(lowerQuery))
+    )];
+    
+    const apiTripleSuggestions = combinedResults
+      .map(triple => ({
+        subject: triple.subject.label,
+        predicate: triple.predicate.label,
+        object: triple.object.label
+      }))
+      .slice(0, limit);
+    
+    return {
+      subjects: apiSubjects.slice(0, limit),
+      predicates: apiPredicates.slice(0, limit),
+      objects: apiObjects.slice(0, limit),
+      triples: apiTripleSuggestions
+    };
   } catch (error) {
     console.error("Erreur lors de la génération des suggestions:", error);
     return { subjects: [], predicates: [], objects: [], triples: [] };
@@ -158,38 +278,60 @@ const getAISuggestions = async (query, triples, limit) => {
 // Fonction pour effectuer une recherche complète basée sur des filtres
 export const searchWithFilters = async (query, filters, endpoint = "base") => {
   try {
-    let triples = await getCachedTriples(endpoint);
+    // Construire les filtres exactement comme dans la barre de droite
+    const searchFilters = {};
     
-    // Filtrer par requête générale (recherche dans tous les champs)
-    if (query) {
-      const lowerQuery = query.toLowerCase();
-      triples = triples.filter(triple => 
-        triple.subject.label.toLowerCase().includes(lowerQuery) ||
-        triple.predicate.label.toLowerCase().includes(lowerQuery) ||
-        triple.object.label.toLowerCase().includes(lowerQuery)
-      );
-    }
-    
-    // Appliquer les filtres spécifiques
     if (filters.subject) {
-      triples = triples.filter(triple => 
-        triple.subject.label.toLowerCase().includes(filters.subject.toLowerCase())
-      );
+      searchFilters.subject = filters.subject;
     }
     
     if (filters.predicate) {
-      triples = triples.filter(triple => 
-        triple.predicate.label.toLowerCase().includes(filters.predicate.toLowerCase())
-      );
+      searchFilters.predicate = filters.predicate;
     }
     
     if (filters.object) {
-      triples = triples.filter(triple => 
-        triple.object.label.toLowerCase().includes(filters.object.toLowerCase())
-      );
+      searchFilters.object = filters.object;
     }
     
-    return triples;
+    // Si aucun filtre spécifique n'est défini mais qu'une requête générale est fournie,
+    // chercher dans tous les champs en faisant des appels séparés et en combinant les résultats
+    if (query && !filters.subject && !filters.predicate && !filters.object) {
+      searchFilters.subject = query;
+      
+      const subjectResults = await searchTriples(searchFilters, endpoint);
+      let allResults = subjectResults || [];
+      
+      try {
+        const predicateFilters = { predicate: query };
+        const predicateResults = await searchTriples(predicateFilters, endpoint);
+        if (predicateResults && predicateResults.length > 0) {
+          // Fusionner les résultats en évitant les doublons
+          allResults = [...allResults, ...predicateResults.filter(pRes => 
+            !allResults.some(sRes => sRes.id === pRes.id)
+          )];
+        }
+      } catch (error) {
+        console.error("Error searching for predicates:", error);
+      }
+      
+      try {
+        const objectFilters = { object: query };
+        const objectResults = await searchTriples(objectFilters, endpoint);
+        if (objectResults && objectResults.length > 0) {
+          // Fusionner les résultats en évitant les doublons
+          allResults = [...allResults, ...objectResults.filter(oRes => 
+            !allResults.some(existingRes => existingRes.id === oRes.id)
+          )];
+        }
+      } catch (error) {
+        console.error("Error searching for objects:", error);
+      }
+      
+      return allResults;
+    }
+    
+    // Utiliser l'API searchTriples directement
+    return await searchTriples(searchFilters, endpoint);
   } catch (error) {
     console.error("Erreur lors de la recherche avec filtres:", error);
     return [];
