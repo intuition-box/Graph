@@ -17,6 +17,7 @@ export const useGraphState = (endpoint, graphType = "base") => {
 
   // Filtres
   const [subjectFilter, setSubjectFilter] = useState("");
+  const [predicateFilter, setPredicateFilter] = useState("");
   const [objectFilter, setObjectFilter] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [shouldSearch, setShouldSearch] = useState(false);
@@ -44,6 +45,7 @@ export const useGraphState = (endpoint, graphType = "base") => {
     setGraphData(initialGraphData);
     setSelectedTriple(null);
     setSubjectFilter("");
+    setPredicateFilter("");
     setObjectFilter("");
     setShouldSearch(false);
   }, [initialGraphData]);
@@ -107,6 +109,9 @@ export const useGraphState = (endpoint, graphType = "base") => {
       case "subject":
         setSubjectFilter(value);
         break;
+      case "predicate":
+        setPredicateFilter(value);
+        break;
       case "object":
         setObjectFilter(value);
         break;
@@ -122,7 +127,7 @@ export const useGraphState = (endpoint, graphType = "base") => {
   const applyFilters = useCallback(async () => {
     if (!shouldSearch) return;
 
-    if (!subjectFilter && !objectFilter) {
+    if (!subjectFilter && !predicateFilter && !objectFilter) {
       resetGraph();
       return;
     }
@@ -131,7 +136,8 @@ export const useGraphState = (endpoint, graphType = "base") => {
     try {
       const filters = {
         subject: subjectFilter,
-        object: objectFilter,
+        predicate: predicateFilter,
+        object: objectFilter
       };
 
       const searchResults = await searchTriples(filters, endpoint);
@@ -158,6 +164,7 @@ export const useGraphState = (endpoint, graphType = "base") => {
     }
   }, [
     subjectFilter,
+    predicateFilter,
     objectFilter,
     endpoint,
     resetGraph,
@@ -193,6 +200,7 @@ export const useGraphState = (endpoint, graphType = "base") => {
     isLoading,
     isSearching,
     subjectFilter,
+    predicateFilter,
     objectFilter,
     shouldSearch,
     canGoBack: currentHistoryIndex > 0,
@@ -206,6 +214,10 @@ export const useGraphState = (endpoint, graphType = "base") => {
     applyFilters,
     goBack,
     goForward,
-    graphType,
+    setGraphData,
+    graphHistory,
+    setGraphHistory,
+    currentHistoryIndex,
+    setCurrentHistoryIndex
   };
 };

@@ -82,10 +82,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
   const isSearchingActive = isLocalSearching || hookIsSearching;
 
   useEffect(() => {
-    console.log("GraphData updated:", graphData);
-  }, [graphData]);
-
-  useEffect(() => {
     loadInitialData();
   }, [loadInitialData, graphType]);
 
@@ -101,10 +97,6 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
       setIsInitialLoad(false);
     }
   };
-
-  React.useEffect(() => {
-    console.log("GraphData updated:", graphData);
-  }, [graphData]);
 
   React.useEffect(() => {
     if (drawerOpen && activeTab === "claims") {
@@ -132,25 +124,44 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
 
   const handleSearch = async (query, filters) => {
     try {
-      setLoading(true);
-      const results = await searchTriples(filters, endpoint);
+      setIsSearching(true);
+      
+      // S'assurer que tous les filtres sont définis
+      const searchFilters = {
+        subject: filters.subject || "",
+        predicate: filters.predicate || "",
+        object: filters.object || ""
+      };
+      
+      const results = await searchTriples(searchFilters, endpoint);
 
       if (results && results.length > 0) {
         const newGraphData = transformToGraphData(results);
-        setGraphData(newGraphData);
+        setUseLocalData(false);
+        hookSetGraphData(newGraphData);
+        
+        // Ajouter à l'historique
+        setGraphHistory((prevHistory) => {
+          const updatedHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+          updatedHistory.push({ 
+            graphData: newGraphData, 
+            selectedTriple: null,
+            filters: searchFilters
+          });
+          return updatedHistory;
+        });
+        setCurrentHistoryIndex((prevIndex) => prevIndex + 1);
       } else {
-        setGraphData({ nodes: [], links: [] });
+        hookSetGraphData({ nodes: [], links: [] });
       }
     } catch (error) {
-      console.error("Error in handleSearch:", error);
-      setGraphData({ nodes: [], links: [] });
+      hookSetGraphData({ nodes: [], links: [] });
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
   };
 
   const handleSearchStart = () => {
-    console.log("Search starting...");
     setIsSearching(true);
   };
 
