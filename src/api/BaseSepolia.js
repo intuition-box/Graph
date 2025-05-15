@@ -57,6 +57,7 @@ export const fetchTriples = async (endpoint = "baseSepolia") => {
           id
           creator_id
           type
+          image
         }
         predicate {
           label
@@ -69,6 +70,7 @@ export const fetchTriples = async (endpoint = "baseSepolia") => {
           id
           creator_id
           type
+          image
         }
       }
     }
@@ -93,6 +95,7 @@ export const fetchTriplesForNode = async (nodeId, endpoint = "baseSepolia") => {
           id
           creator_id
           type
+          image
         }
         predicate {
           label
@@ -105,6 +108,7 @@ export const fetchTriplesForNode = async (nodeId, endpoint = "baseSepolia") => {
           id
           creator_id
           type
+          image
         }
       }
     }
@@ -146,6 +150,7 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
           id
           creator_id
           type
+          image
         }
         predicate {
           label
@@ -158,6 +163,7 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
           id
           creator_id
           type
+          image
         }
       }
     }
@@ -201,11 +207,8 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
     where: where._and.length > 0 ? where : {},
   };
 
-  console.log("Executing search query with variables:", variables);
-
   try {
     const data = await client.request(query, variables);
-    console.log("Search query response:", data);
     return data.triples;
   } catch (error) {
     console.error("Error executing search query:", error);
@@ -226,12 +229,26 @@ export const fetchClaimsByAccount = async (
         account_id
         counter_shares
         counter_vault_id
-        object_id
-        predicate_id
         shares
-        subject_id
         triple_id
         vault_id
+        subject {
+          id
+          label
+          type
+          image
+        }
+        predicate {
+          id
+          label
+          type
+        }
+        object {
+          id
+          label
+          type
+          image
+        }
       }
     }
   `;
@@ -281,14 +298,8 @@ export const fetchTriplesForAgent = async (
   // Pour GraphQL request, nous devons adapter la requête subscription en requête query
   // Cette requête est compatible avec les APIs qui ne supportent pas les souscriptions
   const adaptedQuery = gql`
-    query Claims_for_Agent(
-      $objectId: numeric!,
-      $batchSize: Int!
-    ) {
-      claims(
-        limit: $batchSize,
-        where: { object_id: { _eq: $objectId } }
-      ) {
+    query Claims_for_Agent($objectId: numeric!, $batchSize: Int!) {
+      claims(limit: $batchSize, where: { object_id: { _eq: $objectId } }) {
         subject {
           id
           label
@@ -309,55 +320,60 @@ export const fetchTriplesForAgent = async (
 
   const variables = {
     batchSize,
-    objectId
+    objectId,
   };
 
   try {
     const data = await client.request(adaptedQuery, variables);
 
     // Transformer les données reçues en format compatible avec les triples
-    const transformedData = data.claims.flatMap(claim => {
+    const transformedData = data.claims.flatMap((claim) => {
       // Si le sujet n'a pas de claims associés, créer au moins un triple pour ce sujet
-      if (!claim.subject.as_subject_claims || claim.subject.as_subject_claims.length === 0) {
-        return [{
-          id: `${claim.subject.id}-connected-to-${objectId}`,
-          subject: {
-            id: claim.subject.id,
-            label: claim.subject.label,
-            type: "agent"
+      if (
+        !claim.subject.as_subject_claims ||
+        claim.subject.as_subject_claims.length === 0
+      ) {
+        return [
+          {
+            id: `${claim.subject.id}-connected-to-${objectId}`,
+            subject: {
+              id: claim.subject.id,
+              label: claim.subject.label,
+              type: "agent",
+            },
+            predicate: {
+              id: null,
+              label: "connected to",
+              type: "relation",
+            },
+            object: {
+              id: objectId,
+              label: "Agent",
+              type: "agent",
+            },
           },
-          predicate: {
-            id: null,
-            label: "connected to",
-            type: "relation"
-          },
-          object: {
-            id: objectId,
-            label: "Agent",
-            type: "agent"
-          }
-        }];
+        ];
       }
 
       // Pour chaque sujet et ses claims associés
-      return claim.subject.as_subject_claims.map(subClaim => {
+      return claim.subject.as_subject_claims.map((subClaim) => {
         return {
           id: `${claim.subject.id}-${subClaim.predicate.label}-${subClaim.object.label}`,
           subject: {
             id: claim.subject.id,
             label: claim.subject.label,
-            type: "agent"
+            type: "agent",
           },
           predicate: {
             id: subClaim.predicate.id || null,
             label: subClaim.predicate.label,
-            type: "relation"
+            type: "relation",
           },
           object: {
             id: subClaim.object.id || null,
             label: subClaim.object.label,
-            type: "concept"
-          }
+            type: "concept",
+          },
         };
       });
     });
@@ -366,16 +382,211 @@ export const fetchTriplesForAgent = async (
   } catch (error) {
     console.error("Error fetching agent-specific triples:", error);
     // En cas d'erreur, essayons une approche alternative
-    return fetchTriples(endpoint).then(triples => {
-      // Filtrer les triples liés à l'agent
-      return triples.filter(triple =>
-        triple.subject.id === objectId ||
-        triple.object.id === objectId ||
-        triple.predicate.id === objectId
-      );
-    }).catch(fallbackError => {
-      console.error("Fallback fetch also failed:", fallbackError);
-      throw error; // Lancer l'erreur originale
-    });
+    return fetchTriples(endpoint)
+      .then((triples) => {
+        // Filtrer les triples liés à l'agent
+        return triples.filter(
+          (triple) =>
+            triple.subject.id === objectId ||
+            triple.object.id === objectId ||
+            triple.predicate.id === objectId
+        );
+      })
+      .catch((fallbackError) => {
+        console.error("Fallback fetch also failed:", fallbackError);
+        throw error; // Lancer l'erreur originale
+      });
   }
+};
+
+// Fetch Positions by Account
+export const fetchPositionsByAccount = async (
+  accountId,
+  endpoint = "baseSepolia"
+) => {
+  const client = createClient(endpoint);
+  const query = gql`
+    query GetAccountActivity($accountId: String!) {
+      positions(where: { account_id: { _eq: $accountId } }) {
+        id
+        shares
+        vault_id
+        account {
+          id
+          label
+          image
+          atom_id
+          type
+        }
+        vault {
+          id
+          total_shares
+          current_share_price
+          atom {
+            id
+            label
+            image
+          }
+          triple {
+            id
+            block_number
+            block_timestamp
+            transaction_hash
+            creator_id
+            subject {
+              id
+              label
+              image
+              emoji
+              type
+              value {
+                person {
+                  name
+                  image
+                  description
+                  url
+                }
+                thing {
+                  name
+                  image
+                  description
+                  url
+                }
+                organization {
+                  name
+                  image
+                  description
+                  url
+                }
+              }
+              creator {
+                label
+                image
+                id
+                atom_id
+                type
+              }
+            }
+            predicate {
+              id
+              label
+              image
+              emoji
+              type
+              value {
+                person {
+                  name
+                  image
+                  description
+                  url
+                }
+                thing {
+                  name
+                  image
+                  description
+                  url
+                }
+                organization {
+                  name
+                  image
+                  description
+                  url
+                }
+              }
+              creator {
+                label
+                image
+                id
+                atom_id
+                type
+              }
+            }
+            object {
+              id
+              label
+              image
+              emoji
+              type
+              value {
+                person {
+                  name
+                  image
+                  description
+                  url
+                }
+                thing {
+                  name
+                  image
+                  description
+                  url
+                }
+                organization {
+                  name
+                  image
+                  description
+                  url
+                }
+              }
+              creator {
+                label
+                image
+                id
+                atom_id
+                type
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+  const variables = { accountId };
+  const data = await client.request(query, variables);
+  return data.positions;
+};
+
+// Fetch follows and followers
+export const fetchFollowsAndFollowers = async (
+  predicateId,
+  accountId,
+  endpoint = "baseSepolia"
+) => {
+  const client = createClient(endpoint);
+  const query = gql`
+    query GetFollowsAndFollowers($predicateId: numeric!, $accountId: numeric!) {
+      follows: triples(
+        where: {
+          _and: [
+            { predicate_id: { _eq: $predicateId } }
+            { subject_id: { _eq: $accountId } }
+          ]
+        }
+      ) {
+        id
+        object {
+          id
+          label
+          image
+        }
+      }
+      followers: triples(
+        where: {
+          _and: [
+            { predicate_id: { _eq: $predicateId } }
+            { object_id: { _eq: $accountId } }
+          ]
+        }
+      ) {
+        id
+        subject {
+          id
+          label
+          image
+        }
+      }
+    }
+  `;
+  const variables = { predicateId, accountId };
+  const data = await client.request(query, variables);
+  return data;
 };

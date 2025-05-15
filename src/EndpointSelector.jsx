@@ -1,37 +1,47 @@
 import React from "react";
-import { ENDPOINTS } from "./api";
 
-const EndpointSelector = ({ currentEndpoint, onEndpointChange }) => {
+const EndpointSelector = ({ endpoint, onEndpointChange }) => {
   return (
     <div
-      className="agent-navbar"
       style={{
-        position: "absolute",
-        top: "10px",
-        left: "10px",
-        zIndex: 10,
         display: "flex",
         alignItems: "center",
-        gap: "10px",
-        width: "270px",
-        height: "25px",
+        gap: "16px",
+        background: "#18181b",
+        padding: "16px 24px",
+        borderRadius: "10px",
+        border: "2px solid #ffd32a",
+        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
       }}
     >
-      <label htmlFor="endpoint" style={{ fontSize: "14px" }}>
-        Endpoint:
+      <label
+        style={{
+          color: "#ffd32a",
+          fontSize: "14px",
+          fontWeight: "bold",
+          letterSpacing: "0.5px",
+        }}
+      >
+        Network:
       </label>
       <select
-        id="endpoint"
-        value={currentEndpoint}
+        value={endpoint}
         onChange={(e) => onEndpointChange(e.target.value)}
-        className="agent-endpoint-select"
-        style={{ width: "190px" }}
+        style={{
+          padding: "8px 12px",
+          borderRadius: "8px",
+          border: "1px solid #ffd32a",
+          fontSize: "14px",
+          background: "#232326",
+          color: "#fff",
+          cursor: "pointer",
+          transition: "border-color 0.2s",
+          outline: "none",
+          minWidth: "200px",
+        }}
       >
-        {Object.entries(ENDPOINTS).map(([key, value]) => (
-          <option key={key} value={key}>
-            {value.displayName}
-          </option>
-        ))}
+        <option value="baseSepolia">Base Testnet</option>
+        <option value="base">Base Mainnet</option>
       </select>
     </div>
   );

@@ -3,15 +3,17 @@ import { ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
 import { getNodeColor } from "./nodeColors";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
+import { NODE_COLORS } from "./nodeColors";
+import * as THREE from "three";
 
-const Graph3D = ({ 
-  graphData, 
-  onNodeClick, 
-  onEngineStop, 
-  fgRef, 
-  tabs, 
-  activeTab, 
-  onTabChange, 
+const Graph3D = ({
+  graphData,
+  onNodeClick,
+  onEngineStop,
+  fgRef,
+  tabs,
+  activeTab,
+  onTabChange,
   children,
   drawerOpen,
   drawerContent,
@@ -24,6 +26,10 @@ const Graph3D = ({
 }) => {
   const containerRef = useRef();
   const [dimensions, setDimensions] = useState({ width: 100, height: 100 });
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [hoveredLink, setHoveredLink] = useState(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [loadedImages, setLoadedImages] = useState(new Map());
 
   // Gérer le redimensionnement avec useEffect
   useEffect(() => {
@@ -31,29 +37,139 @@ const Graph3D = ({
       if (containerRef.current) {
         setDimensions({
           width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight
+          height: containerRef.current.clientHeight,
         });
       }
     };
 
     // Mettre à jour les dimensions initiales
     updateDimensions();
-    
+
     // Ajouter un écouteur d'événement pour le redimensionnement
-    window.addEventListener('resize', updateDimensions);
-    
+    window.addEventListener("resize", updateDimensions);
+
     // Nettoyer l'écouteur d'événement lors du démontage
-    return () => window.removeEventListener('resize', updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
+  // Fonction pour charger une image
+  const loadImage = (url) => {
+    if (loadedImages.has(url)) {
+      return loadedImages.get(url);
+    }
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url;
+    img.onload = () => {
+      setLoadedImages((prev) => new Map(prev).set(url, img));
+      if (fgRef.current) {
+        fgRef.current.emit("redraw");
+      }
+    };
+    return null;
+  };
+
+  // Précharger les images au montage du composant
+  useEffect(() => {
+    graphData.nodes.forEach((node) => {
+      if (node.image) {
+        loadImage(node.image);
+      }
+    });
+  }, [graphData.nodes]);
+
+  // Fonction pour créer un matériau avec image
+  const createImageMaterial = (node) => {
+    const img = loadedImages.get(node.image);
+    if (!img) return null;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 128, 128);
+
+    if (node.type === "object") {
+      // Image carrée
+      ctx.fillStyle = getNodeColor(node.type);
+      ctx.fillRect(0, 0, 128, 128);
+      const ratio = Math.max(128 / img.width, 128 / img.height);
+      const w = img.width * ratio;
+      const h = img.height * ratio;
+      ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
+    } else {
+      // Image circulaire
+      ctx.beginPath();
+      ctx.arc(64, 64, 64, 0, 2 * Math.PI);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = getNodeColor(node.type);
+      ctx.fillRect(0, 0, 128, 128);
+      const ratio = Math.max(128 / img.width, 128 / img.height);
+      const w = img.width * ratio;
+      const h = img.height * ratio;
+      ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
+    }
+
+    const texture = new THREE.Texture(canvas);
+    texture.needsUpdate = true;
+    return new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+    });
+  };
+
+  // Fonction pour créer un matériau avec lettre
+  const createLetterMaterial = (node) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 128, 128);
+
+    if (node.type === "object") {
+      ctx.fillStyle = getNodeColor(node.type);
+      ctx.fillRect(0, 0, 128, 128);
+    } else {
+      ctx.beginPath();
+      ctx.arc(64, 64, 64, 0, 2 * Math.PI);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = getNodeColor(node.type);
+      ctx.fillRect(0, 0, 128, 128);
+    }
+
+    const letter = (node.label || "?").charAt(0).toUpperCase();
+    ctx.font = "bold 72px Sans-Serif";
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(letter, 64, 72);
+
+    const texture = new THREE.Texture(canvas);
+    texture.needsUpdate = true;
+    return new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+    });
+  };
+
   return (
-    <div 
+    <div
       ref={containerRef}
-      style={{ 
-        position: "relative", 
-        width: "100%", 
+      style={{
+        position: "relative",
+        width: "100%",
         height: "100%",
-        overflow: "hidden" 
+        overflow: "hidden",
+      }}
+      onMouseMove={(e) => {
+        if (containerRef.current) {
+          const bounds = containerRef.current.getBoundingClientRect();
+          setMousePos({
+            x: e.clientX - bounds.left,
+            y: e.clientY - bounds.top,
+          });
+        }
       }}
     >
       <ForceGraph3D
@@ -63,42 +179,193 @@ const Graph3D = ({
         height={dimensions.height}
         controlType="fly"
         nodeLabel="label"
-        onNodeClick={(node) => {
-          console.log("Node clicked inside Graph3D:", node);
-          onNodeClick && onNodeClick(node);
-        }}
+        onNodeClick={onNodeClick}
         linkColor={() => "rgba(255, 211, 42, 0.15)"}
         linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={0.0025}
         linkDirectionalParticleColor={() => "rgba(255,255,255,0.5)"}
         nodeAutoColorBy="type"
         nodeThreeObject={(node) => {
-          const sprite = new SpriteText(node.label || "");
-          sprite.backgroundColor = getNodeColor(node.type) + "CC";
-          sprite.borderRadius = 1;
-          sprite.padding = 1;
-          sprite.color = "#fff";
-          sprite.textHeight = 2;
-          return sprite;
+          console.log("Rendu node 3D:", {
+            id: node.id,
+            image: node.image,
+            type: node.type,
+          });
+          const size = 16;
+          if (node.type === "object") {
+            // --- Carré 2D (plan XY) ---
+            const group = new THREE.Group();
+            if (node.image) {
+              console.log("Tentative de rendu image 3D pour node:", node.id);
+              // Canvas carré pour l'image
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 128;
+              const ctx = canvas.getContext("2d");
+              ctx.clearRect(0, 0, 128, 128);
+              // Charger l'image et la dessiner centrée/couverte
+              const img = new window.Image();
+              img.crossOrigin = "anonymous";
+              img.src = node.image;
+              img.onload = () => {
+                console.log("Image 3D chargée avec succès:", node.image);
+                const ratio = Math.max(128 / img.width, 128 / img.height);
+                const w = img.width * ratio;
+                const h = img.height * ratio;
+                ctx.save();
+                ctx.fillStyle = getNodeColor(node.type);
+                ctx.fillRect(0, 0, 128, 128); // fond/contour
+                ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
+                ctx.restore();
+                texture.needsUpdate = true;
+              };
+              img.onerror = (err) => {
+                console.error(
+                  "Erreur chargement image 3D:",
+                  err,
+                  "URL:",
+                  node.image
+                );
+              };
+              // Sprite image carré
+              const texture = new THREE.Texture(canvas);
+              const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+              });
+              const plane = new THREE.Mesh(
+                new THREE.PlaneGeometry(size, size),
+                material
+              );
+              group.add(plane);
+              return group;
+            } else {
+              // Lettre sur carré coloré
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 128;
+              const ctx = canvas.getContext("2d");
+              ctx.clearRect(0, 0, 128, 128);
+              ctx.fillStyle = getNodeColor(node.type);
+              ctx.fillRect(0, 0, 128, 128);
+              const letter = (node.label || "?").charAt(0).toUpperCase();
+              ctx.font = "bold 72px Sans-Serif";
+              ctx.fillStyle = "#fff";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(letter, 64, 72);
+              const texture = new THREE.Texture(canvas);
+              texture.needsUpdate = true;
+              const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+              });
+              const plane = new THREE.Mesh(
+                new THREE.PlaneGeometry(size, size),
+                material
+              );
+              group.add(plane);
+              return group;
+            }
+          } else {
+            // --- Cercle 2D (plan XY) ---
+            const group = new THREE.Group();
+            if (node.image) {
+              // Canvas rond pour l'image
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 128;
+              const ctx = canvas.getContext("2d");
+              ctx.clearRect(0, 0, 128, 128);
+              const img = new window.Image();
+              img.crossOrigin = "anonymous";
+              img.src = node.image;
+              img.onload = () => {
+                const ratio = Math.max(128 / img.width, 128 / img.height);
+                const w = img.width * ratio;
+                const h = img.height * ratio;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(64, 64, 64, 0, 2 * Math.PI);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
+                ctx.restore();
+                texture.needsUpdate = true;
+              };
+              const texture = new THREE.Texture(canvas);
+              const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+              });
+              const plane = new THREE.Mesh(
+                new THREE.CircleGeometry(size / 2, 48),
+                material
+              );
+              group.add(plane);
+              return group;
+            } else {
+              // Lettre sur cercle coloré
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = 128;
+              const ctx = canvas.getContext("2d");
+              ctx.clearRect(0, 0, 128, 128);
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(64, 64, 64, 0, 2 * Math.PI);
+              ctx.closePath();
+              ctx.clip();
+              ctx.fillStyle = getNodeColor(node.type);
+              ctx.fillRect(0, 0, 128, 128);
+              ctx.restore();
+              const letter = (node.label || "?").charAt(0).toUpperCase();
+              ctx.font = "bold 72px Sans-Serif";
+              ctx.fillStyle = "#fff";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(letter, 64, 72);
+              const texture = new THREE.Texture(canvas);
+              texture.needsUpdate = true;
+              const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+              });
+              const plane = new THREE.Mesh(
+                new THREE.CircleGeometry(size / 2, 48),
+                material
+              );
+              group.add(plane);
+              return group;
+            }
+          }
         }}
         onEngineStop={onEngineStop}
+        onNodeHover={setHoveredNode}
+        onLinkHover={setHoveredLink}
+        onBackgroundClick={() => {
+          setHoveredLink(null);
+          setHoveredNode(null);
+        }}
+        onZoom={() => {
+          setHoveredLink(null);
+          setHoveredNode(null);
+        }}
       />
-      
-      {/* Afficher le NodeDetailsSidebar comme dans GraphVR */}
+
+      {/* Afficher le NodeDetailsSidebar */}
       {selectedTriple && (
-        <div style={{ 
-          position: "absolute", 
-          top: 80, 
-          right: 30, 
-          width: 350,
-          zIndex: 9999,
-          maxHeight: "80vh",
-          background: "#18181b",
-          borderRadius: "10px",
-          border: "3px solid #ffd32a",
-          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
-          overflowY: "auto"
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 80,
+            right: 30,
+            width: 350,
+            zIndex: 9999,
+            maxHeight: "80vh",
+            background: "#18181b",
+            borderRadius: "10px",
+            border: "3px solid #ffd32a",
+            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
+            overflowY: "auto",
+          }}
+        >
           <NodeDetailsSidebar
             triple={selectedTriple}
             endpoint={endpoint}
@@ -106,7 +373,7 @@ const Graph3D = ({
           />
         </div>
       )}
-      
+
       {/* Affichage de la barre de navigation en bas comme surcouche */}
       {tabs && (
         <div
@@ -161,7 +428,7 @@ const Graph3D = ({
           ))}
         </div>
       )}
-      
+
       {/* Rendu du Drawer du bas */}
       <div
         style={{
@@ -212,7 +479,7 @@ const Graph3D = ({
           </>
         )}
       </div>
-      
+
       {/* Rendu du SidebarDrawer */}
       <div
         style={{
@@ -278,11 +545,63 @@ const Graph3D = ({
           onClick={drawerOpen ? onDrawerClose : onSidebarClose}
         />
       )}
-      
+
       {/* Rendu de tout contenu enfant comme surcouche */}
-      <div style={{ position: "relative", zIndex: 2000 }}>
-        {children}
-      </div>
+      <div style={{ position: "relative", zIndex: 2000 }}>{children}</div>
+
+      {/* Tooltip pour les nœuds */}
+      {hoveredNode && hoveredNode.label && (
+        <div
+          style={{
+            position: "absolute",
+            left: mousePos.x + 18,
+            top: mousePos.y - 10,
+            background: "#232326",
+            color: "#fff",
+            border: "1.5px solid #ffd32a",
+            borderRadius: 8,
+            padding: "6px 14px",
+            fontSize: 15,
+            fontWeight: "bold",
+            zIndex: 10001,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            maxWidth: 260,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {hoveredNode.label}
+        </div>
+      )}
+
+      {/* Tooltip pour les liens */}
+      {hoveredLink && hoveredLink.label && (
+        <div
+          style={{
+            position: "absolute",
+            left: mousePos.x + 18,
+            top: mousePos.y - 10,
+            background: NODE_COLORS.PREDICATE,
+            color: "#fff",
+            border: `1.5px solid ${NODE_COLORS.PREDICATE}`,
+            borderRadius: 8,
+            padding: "6px 14px",
+            fontSize: 15,
+            fontWeight: "bold",
+            zIndex: 10001,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            maxWidth: 260,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {hoveredLink.label}
+        </div>
+      )}
     </div>
   );
 };

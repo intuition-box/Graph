@@ -13,6 +13,7 @@ export const transformToGraphData = (triples) => {
       const subjectNode = {
         id: subject.id,
         label: subject.label,
+        image: subject.image,
         isTriple: false,
         color: getNodeColor("subject"),
         type: "subject",
@@ -26,6 +27,7 @@ export const transformToGraphData = (triples) => {
       const objectNode = {
         id: object.id,
         label: object.label,
+        image: object.image,
         isTriple: false,
         color: getNodeColor("object"),
         type: "object",

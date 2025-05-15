@@ -111,3 +111,5 @@ export const fetchTriplesForAgent = async (
 ) => {
   return BaseSepolia.fetchTriplesForAgent(objectId, endpoint, batchSize);
 };
+
+export * from "./api/BaseSepolia";
