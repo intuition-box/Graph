@@ -22,7 +22,7 @@ import PositionCard from "./components/PositionCard";
 import ActivityCard from "./components/ActivityCard";
 import SmartSearchInterface from "./components/SmartSearchInterface";
 import { transformToGraphData } from "./graphData";
-import ChatBox from "./components/ChatBox";
+//*import ChatBox from "./components/ChatBox"; //*
 import FollowersCard from "./components/FollowersCard";
 
 const ACCOUNT_ID = "0xddfff342ce2547338b0f689aa3ec86893340fbdf";
@@ -417,7 +417,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
         />
       </div>
 
-      <div
+      {/* <div
         style={{
           position: "fixed",
           bottom: "10px",
@@ -430,7 +430,7 @@ const GraphVisualization = ({ endpoint, walletAddress }) => {
             walletAddress || "0x25d5C9DbC1E12163B973261A08739927E4F72BA7"
           }
         />
-      </div>
+      </div> */}
 
       <div
         className="agent-navbar"
