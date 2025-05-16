@@ -21,15 +21,15 @@ const ClaimCard = ({ claim }) => (
     <div style={{ flex: 1 }}>
       <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
         <span style={{ color: "#ffd32a", fontWeight: 700 }}>Subject:</span>
-        <span style={{ color: "#fff" }}>{claim.subject_id}</span>
+        <span style={{ color: "#fff" }}>{claim.subject.label}</span>
         <span style={{ color: "#ffd32a", fontWeight: 700, marginLeft: 12 }}>
           Predicate:
         </span>
-        <span style={{ color: "#fff" }}>{claim.predicate_id}</span>
+        <span style={{ color: "#fff" }}>{claim.predicate.label}</span>
         <span style={{ color: "#ffd32a", fontWeight: 700, marginLeft: 12 }}>
           Object:
         </span>
-        <span style={{ color: "#fff" }}>{claim.object_id}</span>
+        <span style={{ color: "#fff" }}>{claim.object.label}</span>
       </div>
       <div
         style={{

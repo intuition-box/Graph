@@ -303,14 +303,20 @@ export const fetchTriplesForAgent = async (
         subject {
           id
           label
+          type
+          image
           as_subject_claims {
             predicate {
               label
               id
+              type
+              image
             }
             object {
               label
               id
+              type
+              image
             }
           }
         }
@@ -340,16 +346,19 @@ export const fetchTriplesForAgent = async (
               id: claim.subject.id,
               label: claim.subject.label,
               type: "agent",
+              image: claim.subject.image,
             },
             predicate: {
               id: null,
               label: "connected to",
               type: "relation",
+              image: null,
             },
             object: {
               id: objectId,
               label: "Agent",
               type: "agent",
+              image: claim.object.image,
             },
           },
         ];
@@ -363,16 +372,19 @@ export const fetchTriplesForAgent = async (
             id: claim.subject.id,
             label: claim.subject.label,
             type: "agent",
+            image: claim.subject.image,
           },
           predicate: {
             id: subClaim.predicate.id || null,
             label: subClaim.predicate.label,
             type: "relation",
+            image: subClaim.predicate.image,
           },
           object: {
             id: subClaim.object.id || null,
             label: subClaim.object.label,
             type: "concept",
+            image: subClaim.object.image,
           },
         };
       });

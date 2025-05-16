@@ -138,12 +138,12 @@ const Graph3D = ({
       ctx.fillRect(0, 0, 128, 128);
     }
 
-    const letter = (node.label || "?").charAt(0).toUpperCase();
+    const label = (node.label || "?").substring(0, 3);
     ctx.font = "bold 72px Sans-Serif";
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(letter, 64, 72);
+    ctx.fillText(label, 64, 72);
 
     const texture = new THREE.Texture(canvas);
     texture.needsUpdate = true;
@@ -178,6 +178,7 @@ const Graph3D = ({
         width={dimensions.width}
         height={dimensions.height}
         controlType="fly"
+        backgroundColor="rgba(0,0,0,0)"
         nodeLabel="label"
         onNodeClick={onNodeClick}
         linkColor={() => "rgba(255, 211, 42, 0.15)"}
@@ -205,19 +206,11 @@ const Graph3D = ({
                 const w = img.width * ratio;
                 const h = img.height * ratio;
                 ctx.save();
-                ctx.fillStyle = getNodeColor(node.type);
+                ctx.fillStyle = getNodeColor(node.type) + "CC";
                 ctx.fillRect(0, 0, 128, 128); // fond/contour
                 ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
                 ctx.restore();
                 texture.needsUpdate = true;
-              };
-              img.onerror = (err) => {
-                console.error(
-                  "Erreur chargement image 3D:",
-                  err,
-                  "URL:",
-                  node.image
-                );
               };
               // Sprite image carré
               const texture = new THREE.Texture(canvas);
@@ -237,14 +230,14 @@ const Graph3D = ({
               canvas.width = canvas.height = 128;
               const ctx = canvas.getContext("2d");
               ctx.clearRect(0, 0, 128, 128);
-              ctx.fillStyle = getNodeColor(node.type);
+              ctx.fillStyle = getNodeColor(node.type) + "CC";
               ctx.fillRect(0, 0, 128, 128);
-              const letter = (node.label || "?").charAt(0).toUpperCase();
-              ctx.font = "bold 72px Sans-Serif";
+              const label = (node.label || "?").substring(0, 3);
+              ctx.font = "bold 40px Sans-Serif";
               ctx.fillStyle = "#fff";
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillText(letter, 64, 72);
+              ctx.fillText(label, 64, 72);
               const texture = new THREE.Texture(canvas);
               texture.needsUpdate = true;
               const material = new THREE.MeshBasicMaterial({
@@ -305,15 +298,15 @@ const Graph3D = ({
               ctx.arc(64, 64, 64, 0, 2 * Math.PI);
               ctx.closePath();
               ctx.clip();
-              ctx.fillStyle = getNodeColor(node.type);
+              ctx.fillStyle = getNodeColor(node.type) + "CC";
               ctx.fillRect(0, 0, 128, 128);
               ctx.restore();
-              const letter = (node.label || "?").charAt(0).toUpperCase();
-              ctx.font = "bold 72px Sans-Serif";
+              const label = (node.label || "?").substring(0, 3);
+              ctx.font = "bold 40px Sans-Serif";
               ctx.fillStyle = "#fff";
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillText(letter, 64, 72);
+              ctx.fillText(label, 64, 72);
               const texture = new THREE.Texture(canvas);
               texture.needsUpdate = true;
               const material = new THREE.MeshBasicMaterial({
