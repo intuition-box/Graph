@@ -63,13 +63,8 @@ const Graph2D = ({
       }
     };
 
-    // Mettre à jour les dimensions initiales
     updateDimensions();
-
-    // Ajouter un écouteur d'événement pour le redimensionnement
     window.addEventListener("resize", updateDimensions);
-
-    // Nettoyer l'écouteur d'événement lors du démontage
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
@@ -90,7 +85,6 @@ const Graph2D = ({
     });
   }, [graphData.nodes]);
 
-  // Utiliser useCallback pour mémoriser les fonctions de gestion d'événements
   const handleZoom = useCallback(() => {
     setHoveredLink(null);
     setHoveredNode(null);
@@ -111,12 +105,11 @@ const Graph2D = ({
     setHoveredNode(null);
   }, []);
 
-  // Ajuste la position du tooltip pour qu'il reste dans le conteneur
   const getTooltipPosition = () => {
     if (!containerRef.current) return { left: mousePos.x, top: mousePos.y };
     const bounds = containerRef.current.getBoundingClientRect();
-    const tooltipWidth = 180; // Largeur max estimée du tooltip
-    const tooltipHeight = 36; // Hauteur estimée du tooltip
+    const tooltipWidth = 180;
+    const tooltipHeight = 36;
     let left = mousePos.x + TOOLTIP_OFFSET_X;
     let top = mousePos.y - TOOLTIP_OFFSET_Y;
     if (left + tooltipWidth > bounds.width)
@@ -147,49 +140,61 @@ const Graph2D = ({
         nodeCanvasObject={(node, ctx, globalScale) => {
           const size = (44 / globalScale) * Math.pow(globalScale, 0.15);
           if (node.type === "object") {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(node.x - size / 2, node.y - size / 2, size, size);
-            ctx.closePath();
-            ctx.lineWidth = 3 / globalScale;
-            ctx.strokeStyle = node.color;
-            ctx.stroke();
-            ctx.clip();
-            if (!node.__img) {
-              const img = new window.Image();
-              img.crossOrigin = "anonymous";
-              img.src = node.image;
-              img.onload = () => {
-                node.__imgLoaded = true;
-                if (fgRef && fgRef.current && fgRef.current.emit)
-                  fgRef.current.emit("redraw");
-              };
-              node.__img = img;
-              node.__imgLoaded = false;
-            }
-            if (node.__imgLoaded) {
-              ctx.drawImage(
-                node.__img,
-                node.x - size / 2,
-                node.y - size / 2,
-                size,
-                size
-              );
-            } else {
-              ctx.fillStyle = node.color || "#888";
-              ctx.fill();
-            }
-            ctx.restore();
-          } else {
             if (node.image) {
               ctx.save();
               ctx.beginPath();
-              ctx.arc(node.x, node.y, size / 2, 0, 2 * Math.PI, false);
+              ctx.rect(node.x - size / 2, node.y - size / 2, size, size);
               ctx.closePath();
-              ctx.lineWidth = 3 / globalScale;
               ctx.strokeStyle = node.color;
+              ctx.lineWidth = 3 / globalScale;
               ctx.stroke();
               ctx.clip();
+              if (!node.__img) {
+                const img = new window.Image();
+                img.crossOrigin = "anonymous";
+                img.src = node.image;
+                img.onload = () => {
+                  node.__imgLoaded = true;
+                  if (fgRef && fgRef.current && fgRef.current.emit)
+                    fgRef.current.emit("redraw");
+                };
+                node.__img = img;
+                node.__imgLoaded = false;
+              }
+              if (node.__imgLoaded) {
+                ctx.drawImage(
+                  node.__img,
+                  node.x - size / 2,
+                  node.y - size / 2,
+                  size,
+                  size
+                );
+              } else {
+                ctx.fillStyle = node.color || "#888";
+                ctx.fillRect(node.x - size / 2, node.y - size / 2, size, size);
+              }
+              ctx.restore();
+            } else {
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(node.x - size / 2, node.y - size / 2, size, size);
+              ctx.closePath();
+              ctx.fillStyle = node.color + "CC";
+              ctx.fill();
+              ctx.strokeStyle = node.color;
+              ctx.lineWidth = 3 / globalScale;
+              ctx.stroke();
+              const label = (node.label || "?").substring(0, 3);
+              const fontSize = 20 / globalScale;
+              ctx.font = `bold ${fontSize}px Sans-Serif`;
+              ctx.fillStyle = "#fff";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(label, node.x, node.y + size * 0.04);
+              ctx.restore();
+            }
+          } else {
+            if (node.image) {
               if (!node.__img) {
                 const img = new window.Image();
                 img.src = node.image;
@@ -201,6 +206,14 @@ const Graph2D = ({
                 node.__img = img;
                 node.__imgLoaded = false;
               }
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, size / 2, 0, 2 * Math.PI, false);
+              ctx.closePath();
+              ctx.lineWidth = 3 / globalScale;
+              ctx.strokeStyle = node.color;
+              ctx.stroke();
+              ctx.clip();
               if (node.__imgLoaded) {
                 ctx.drawImage(
                   node.__img,
@@ -224,13 +237,13 @@ const Graph2D = ({
               ctx.strokeStyle = node.color;
               ctx.lineWidth = 3 / globalScale;
               ctx.stroke();
-              const letter = (node.label || "?").charAt(0).toUpperCase();
+              const label = (node.label || "?").substring(0, 3);
               const fontSize = 20 / globalScale;
               ctx.font = `bold ${fontSize}px Sans-Serif`;
               ctx.fillStyle = "#fff";
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillText(letter, node.x, node.y + size * 0.04);
+              ctx.fillText(label, node.x, node.y + size * 0.04);
               ctx.restore();
             }
           }
@@ -263,7 +276,8 @@ const Graph2D = ({
         onZoom={handleZoom}
       />
 
-      {hoveredLink && hoveredLink.label && (
+      {/* Tooltips */}
+      {hoveredLink && hoveredLink.label ? (
         <div
           style={{
             ...tooltipStyle,
@@ -273,9 +287,7 @@ const Graph2D = ({
         >
           {hoveredLink.label}
         </div>
-      )}
-
-      {hoveredNode && hoveredNode.label && (
+      ) : hoveredNode && hoveredNode.label ? (
         <div
           style={{
             position: "absolute",
@@ -299,9 +311,9 @@ const Graph2D = ({
         >
           {hoveredNode.label}
         </div>
-      )}
+      ) : null}
 
-      {/* Afficher le NodeDetailsSidebar comme dans GraphVR */}
+      {/* NodeDetailsSidebar */}
       {selectedTriple && (
         <div
           style={{
@@ -326,7 +338,7 @@ const Graph2D = ({
         </div>
       )}
 
-      {/* Affichage de la barre de navigation en bas comme surcouche */}
+      {/* Navigation Tabs */}
       {tabs && (
         <div
           style={{
@@ -381,7 +393,7 @@ const Graph2D = ({
         </div>
       )}
 
-      {/* Rendu du Drawer du bas */}
+      {/* Bottom Drawer */}
       <div
         style={{
           position: "absolute",
@@ -432,7 +444,7 @@ const Graph2D = ({
         )}
       </div>
 
-      {/* Rendu du SidebarDrawer */}
+      {/* Sidebar Drawer */}
       <div
         style={{
           position: "absolute",
@@ -484,7 +496,7 @@ const Graph2D = ({
         )}
       </div>
 
-      {/* Overlay pour le clic en dehors */}
+      {/* Overlay */}
       {(drawerOpen || sidebarOpen) && (
         <div
           style={{
@@ -498,9 +510,10 @@ const Graph2D = ({
         />
       )}
 
-      {/* Rendu de tout contenu enfant comme surcouche */}
+      {/* Children */}
       <div style={{ position: "relative", zIndex: 2000 }}>{children}</div>
     </div>
   );
 };
+
 export default Graph2D;
