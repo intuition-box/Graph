@@ -291,22 +291,22 @@ const Graph2D = ({
         <div
           style={{
             position: "absolute",
-            top: mousePos.y - TOOLTIP_OFFSET_Y,
-            left: mousePos.x + TOOLTIP_OFFSET_X,
-            background: hoveredNode.color || NODE_COLORS.SUBJECT,
+            left: mousePos.x + 18,
+            top: mousePos.y - 10,
+            background: "#232326",
             color: "#fff",
-            border: `2px solid ${hoveredNode.color || NODE_COLORS.SUBJECT}`,
+            border: "1.5px solid #ffd32a",
             borderRadius: 8,
             padding: "6px 14px",
             fontSize: 15,
             fontWeight: "bold",
-            zIndex: 10000,
+            zIndex: 10001,
             boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            pointerEvents: "none",
             whiteSpace: "nowrap",
             maxWidth: 260,
             overflow: "hidden",
             textOverflow: "ellipsis",
-            pointerEvents: "none",
           }}
         >
           {hoveredNode.label}

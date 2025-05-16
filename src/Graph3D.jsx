@@ -29,9 +29,8 @@ const Graph3D = ({
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [loadedImages, setLoadedImages] = useState(new Map());
+  const textureCache = useRef(new Map());
 
-  // Gérer le redimensionnement avec useEffect
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
@@ -41,116 +40,79 @@ const Graph3D = ({
         });
       }
     };
-
-    // Mettre à jour les dimensions initiales
     updateDimensions();
-
-    // Ajouter un écouteur d'événement pour le redimensionnement
     window.addEventListener("resize", updateDimensions);
-
-    // Nettoyer l'écouteur d'événement lors du démontage
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
-  // Fonction pour charger une image
-  const loadImage = (url) => {
-    if (loadedImages.has(url)) {
-      return loadedImages.get(url);
+  const getNodeMaterial = (node) => {
+    if (textureCache.current.has(node.id)) {
+      return textureCache.current.get(node.id);
     }
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = url;
-    img.onload = () => {
-      setLoadedImages((prev) => new Map(prev).set(url, img));
-      if (fgRef.current) {
-        fgRef.current.emit("redraw");
-      }
-    };
-    return null;
-  };
-
-  // Précharger les images au montage du composant
-  useEffect(() => {
-    graphData.nodes.forEach((node) => {
-      if (node.image) {
-        loadImage(node.image);
-      }
-    });
-  }, [graphData.nodes]);
-
-  // Fonction pour créer un matériau avec image
-  const createImageMaterial = (node) => {
-    const img = loadedImages.get(node.image);
-    if (!img) return null;
-
+    const size = 128;
     const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 128;
+    canvas.width = canvas.height = size;
     const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, 128, 128);
-
-    if (node.type === "object") {
-      // Image carrée
-      ctx.fillStyle = getNodeColor(node.type);
-      ctx.fillRect(0, 0, 128, 128);
-      const ratio = Math.max(128 / img.width, 128 / img.height);
-      const w = img.width * ratio;
-      const h = img.height * ratio;
-      ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
+    ctx.clearRect(0, 0, size, size);
+    if (node.image) {
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.src = node.image;
+      img.onload = () => {
+        ctx.clearRect(0, 0, size, size);
+        if (node.type === "object") {
+          ctx.fillStyle = getNodeColor(node.type) + "CC";
+          ctx.fillRect(0, 0, size, size);
+          const ratio = Math.max(size / img.width, size / img.height);
+          const w = img.width * ratio;
+          const h = img.height * ratio;
+          ctx.drawImage(img, size / 2 - w / 2, size / 2 - h / 2, w, h);
+        } else {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+          ctx.closePath();
+          ctx.clip();
+          ctx.fillStyle = getNodeColor(node.type) + "CC";
+          ctx.fillRect(0, 0, size, size);
+          const ratio = Math.max(size / img.width, size / img.height);
+          const w = img.width * ratio;
+          const h = img.height * ratio;
+          ctx.drawImage(img, size / 2 - w / 2, size / 2 - h / 2, w, h);
+          ctx.restore();
+        }
+        texture.needsUpdate = true;
+        if (fgRef.current) fgRef.current.emit("redraw");
+      };
     } else {
-      // Image circulaire
-      ctx.beginPath();
-      ctx.arc(64, 64, 64, 0, 2 * Math.PI);
-      ctx.closePath();
-      ctx.clip();
-      ctx.fillStyle = getNodeColor(node.type);
-      ctx.fillRect(0, 0, 128, 128);
-      const ratio = Math.max(128 / img.width, 128 / img.height);
-      const w = img.width * ratio;
-      const h = img.height * ratio;
-      ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
+      if (node.type === "object") {
+        ctx.fillStyle = getNodeColor(node.type) + "CC";
+        ctx.fillRect(0, 0, size, size);
+      } else {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2, 0, 2 * Math.PI);
+        ctx.closePath();
+        ctx.clip();
+        ctx.fillStyle = getNodeColor(node.type) + "CC";
+        ctx.fillRect(0, 0, size, size);
+        ctx.restore();
+      }
+      const label = (node.label || "?").substring(0, 3);
+      ctx.font = "bold 48px Sans-Serif";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, size / 2, size / 2 + 6);
     }
-
     const texture = new THREE.Texture(canvas);
     texture.needsUpdate = true;
-    return new THREE.MeshBasicMaterial({
+    const material = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
     });
-  };
-
-  // Fonction pour créer un matériau avec lettre
-  const createLetterMaterial = (node) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 128;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, 128, 128);
-
-    if (node.type === "object") {
-      ctx.fillStyle = getNodeColor(node.type);
-      ctx.fillRect(0, 0, 128, 128);
-    } else {
-      ctx.beginPath();
-      ctx.arc(64, 64, 64, 0, 2 * Math.PI);
-      ctx.closePath();
-      ctx.clip();
-      ctx.fillStyle = getNodeColor(node.type);
-      ctx.fillRect(0, 0, 128, 128);
-    }
-
-    const label = (node.label || "?").substring(0, 3);
-    ctx.font = "bold 72px Sans-Serif";
-    ctx.fillStyle = "#fff";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, 64, 72);
-
-    const texture = new THREE.Texture(canvas);
-    texture.needsUpdate = true;
-    return new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-    });
+    textureCache.current.set(node.id, material);
+    return material;
   };
 
   return (
@@ -179,7 +141,7 @@ const Graph3D = ({
         height={dimensions.height}
         controlType="fly"
         backgroundColor="rgba(0,0,0,0)"
-        nodeLabel="label"
+        nodeLabel=""
         onNodeClick={onNodeClick}
         linkColor={() => "rgba(255, 211, 42, 0.15)"}
         linkDirectionalParticles={2}
@@ -188,139 +150,22 @@ const Graph3D = ({
         nodeAutoColorBy="type"
         nodeThreeObject={(node) => {
           const size = 16;
+          const group = new THREE.Group();
+          const material = getNodeMaterial(node);
+          let mesh;
           if (node.type === "object") {
-            // --- Carré 2D (plan XY) ---
-            const group = new THREE.Group();
-            if (node.image) {
-              // Canvas carré pour l'image
-              const canvas = document.createElement("canvas");
-              canvas.width = canvas.height = 128;
-              const ctx = canvas.getContext("2d");
-              ctx.clearRect(0, 0, 128, 128);
-              // Charger l'image et la dessiner centrée/couverte
-              const img = new window.Image();
-              img.crossOrigin = "anonymous";
-              img.src = node.image;
-              img.onload = () => {
-                const ratio = Math.max(128 / img.width, 128 / img.height);
-                const w = img.width * ratio;
-                const h = img.height * ratio;
-                ctx.save();
-                ctx.fillStyle = getNodeColor(node.type) + "CC";
-                ctx.fillRect(0, 0, 128, 128); // fond/contour
-                ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
-                ctx.restore();
-                texture.needsUpdate = true;
-              };
-              // Sprite image carré
-              const texture = new THREE.Texture(canvas);
-              const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                transparent: true,
-              });
-              const plane = new THREE.Mesh(
-                new THREE.PlaneGeometry(size, size),
-                material
-              );
-              group.add(plane);
-              return group;
-            } else {
-              // Lettre sur carré coloré
-              const canvas = document.createElement("canvas");
-              canvas.width = canvas.height = 128;
-              const ctx = canvas.getContext("2d");
-              ctx.clearRect(0, 0, 128, 128);
-              ctx.fillStyle = getNodeColor(node.type) + "CC";
-              ctx.fillRect(0, 0, 128, 128);
-              const label = (node.label || "?").substring(0, 3);
-              ctx.font = "bold 40px Sans-Serif";
-              ctx.fillStyle = "#fff";
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillText(label, 64, 72);
-              const texture = new THREE.Texture(canvas);
-              texture.needsUpdate = true;
-              const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                transparent: true,
-              });
-              const plane = new THREE.Mesh(
-                new THREE.PlaneGeometry(size, size),
-                material
-              );
-              group.add(plane);
-              return group;
-            }
+            mesh = new THREE.Mesh(
+              new THREE.PlaneGeometry(size, size),
+              material
+            );
           } else {
-            // --- Cercle 2D (plan XY) ---
-            const group = new THREE.Group();
-            if (node.image) {
-              // Canvas rond pour l'image
-              const canvas = document.createElement("canvas");
-              canvas.width = canvas.height = 128;
-              const ctx = canvas.getContext("2d");
-              ctx.clearRect(0, 0, 128, 128);
-              const img = new window.Image();
-              img.crossOrigin = "anonymous";
-              img.src = node.image;
-              img.onload = () => {
-                const ratio = Math.max(128 / img.width, 128 / img.height);
-                const w = img.width * ratio;
-                const h = img.height * ratio;
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(64, 64, 64, 0, 2 * Math.PI);
-                ctx.closePath();
-                ctx.clip();
-                ctx.drawImage(img, 64 - w / 2, 64 - h / 2, w, h);
-                ctx.restore();
-                texture.needsUpdate = true;
-              };
-              const texture = new THREE.Texture(canvas);
-              const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                transparent: true,
-              });
-              const plane = new THREE.Mesh(
-                new THREE.CircleGeometry(size / 2, 48),
-                material
-              );
-              group.add(plane);
-              return group;
-            } else {
-              // Lettre sur cercle coloré
-              const canvas = document.createElement("canvas");
-              canvas.width = canvas.height = 128;
-              const ctx = canvas.getContext("2d");
-              ctx.clearRect(0, 0, 128, 128);
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(64, 64, 64, 0, 2 * Math.PI);
-              ctx.closePath();
-              ctx.clip();
-              ctx.fillStyle = getNodeColor(node.type) + "CC";
-              ctx.fillRect(0, 0, 128, 128);
-              ctx.restore();
-              const label = (node.label || "?").substring(0, 3);
-              ctx.font = "bold 40px Sans-Serif";
-              ctx.fillStyle = "#fff";
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillText(label, 64, 72);
-              const texture = new THREE.Texture(canvas);
-              texture.needsUpdate = true;
-              const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                transparent: true,
-              });
-              const plane = new THREE.Mesh(
-                new THREE.CircleGeometry(size / 2, 48),
-                material
-              );
-              group.add(plane);
-              return group;
-            }
+            mesh = new THREE.Mesh(
+              new THREE.CircleGeometry(size / 2, 48),
+              material
+            );
           }
+          group.add(mesh);
+          return group;
         }}
         onEngineStop={onEngineStop}
         onNodeHover={setHoveredNode}
@@ -535,35 +380,8 @@ const Graph3D = ({
       {/* Rendu de tout contenu enfant comme surcouche */}
       <div style={{ position: "relative", zIndex: 2000 }}>{children}</div>
 
-      {/* Tooltip pour les nœuds */}
-      {hoveredNode && hoveredNode.label && (
-        <div
-          style={{
-            position: "absolute",
-            left: mousePos.x + 18,
-            top: mousePos.y - 10,
-            background: "#232326",
-            color: "#fff",
-            border: "1.5px solid #ffd32a",
-            borderRadius: 8,
-            padding: "6px 14px",
-            fontSize: 15,
-            fontWeight: "bold",
-            zIndex: 10001,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-            pointerEvents: "none",
-            whiteSpace: "nowrap",
-            maxWidth: 260,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {hoveredNode.label}
-        </div>
-      )}
-
-      {/* Tooltip pour les liens */}
-      {hoveredLink && hoveredLink.label && (
+      {/* Tooltips */}
+      {hoveredLink && hoveredLink.label ? (
         <div
           style={{
             position: "absolute",
@@ -587,7 +405,31 @@ const Graph3D = ({
         >
           {hoveredLink.label}
         </div>
-      )}
+      ) : hoveredNode && hoveredNode.label ? (
+        <div
+          style={{
+            position: "absolute",
+            left: mousePos.x + 18,
+            top: mousePos.y - 10,
+            background: "#232326",
+            color: "#fff",
+            border: "1.5px solid #ffd32a",
+            borderRadius: 8,
+            padding: "6px 14px",
+            fontSize: 15,
+            fontWeight: "bold",
+            zIndex: 10001,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            maxWidth: 260,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {hoveredNode.label}
+        </div>
+      ) : null}
     </div>
   );
 };
