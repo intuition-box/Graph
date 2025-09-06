@@ -12,21 +12,88 @@
   padding: 1rem;
   color: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  z-index: 1;
-  position : fixed;
+  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  overflow: visible;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.env-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.env-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #22c55e; /* green */
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+  position: relative;
+}
+
+/* Smooth pulsing ring to indicate active connection */
+.env-dot::after {
+  content: "";
+  position: absolute;
+  inset: -2px; /* start slightly larger than the dot */
+  border-radius: 999px;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+  animation: envPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes envPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1.9);
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    opacity: 0.4;
+  }
 }
 
 .App-header h1 {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .App-main {
   flex: 1;
   position: relative;
   overflow: hidden;
+  /* Offset for fixed header height */
+  padding-top: 72px;
 }
 
 /* Graph container takes full size of main area */

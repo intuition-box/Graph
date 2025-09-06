@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
-import { fetchTriples, fetchTriplesForNode, searchTriples } from "./api";
+import { fetchTriples, fetchTriplesForNode, searchTriples, createClient } from "./api";
+import { GetTriplesWithPositionsDocument } from "./vendor/intuition-graphql/dist/index.mjs";
 import { transformToGraphData } from "./graphData";
 import { NODE_COLORS } from "./nodeColors";
 import GraphLegend from "./GraphLegend";
@@ -9,7 +10,7 @@ import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
 
-const GraphVisualization = ({ endpoint }) => {
+const GraphVisualization = ({ endpoint, userFilterAddress }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -88,6 +89,66 @@ const GraphVisualization = ({ endpoint }) => {
 
     loadData();
   }, [showCreators, endpoint, enhanceGraphDataWithCreators]);
+
+  // Focus graph on user's positions when a filter address is provided
+  useEffect(() => {
+    const run = async () => {
+      if (!userFilterAddress) {
+        // restore initial graph
+        if (initialGraphData) setGraphData(initialGraphData);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const client = createClient(endpoint);
+        const where = {
+          _or: [
+            { term: { vaults: { positions: { account_id: { _ilike: userFilterAddress } } } } },
+            { counter_term: { vaults: { positions: { account_id: { _ilike: userFilterAddress } } } } },
+          ],
+        };
+        const data = await client.request(GetTriplesWithPositionsDocument, {
+          where,
+          address: userFilterAddress,
+          limit: 1000,
+        });
+        const raw = data?.triples || [];
+        const addrLc = String(userFilterAddress).toLowerCase();
+        const hasUserPos = (side) => {
+          const vaults = side?.vaults || [];
+          return vaults.some((v) =>
+            (v.positions || []).some((p) =>
+              String(p?.account?.id || '').toLowerCase() === addrLc
+            )
+          );
+        };
+        const onlyUser = raw.filter((t) => hasUserPos(t.term) || hasUserPos(t.counter_term));
+        const triples = onlyUser.map((t) => ({
+          id: t.term_id,
+          subject: t.subject
+            ? { id: t.subject.term_id, label: t.subject.label }
+            : { id: String(t.subject_id || t.term_id) , label: String(t.subject_id || t.term_id) },
+          predicate: t.predicate
+            ? { id: t.predicate.term_id, label: t.predicate.label }
+            : { id: String(t.predicate_id || t.term_id), label: String(t.predicate_id || t.term_id) },
+          object: t.object
+            ? { id: t.object.term_id, label: t.object.label }
+            : { id: String(t.object_id || t.term_id), label: String(t.object_id || t.term_id) },
+        }));
+
+        let userGraph = transformToGraphData(triples);
+        if (showCreators) {
+          userGraph = enhanceGraphDataWithCreators(userGraph, triples);
+        }
+        setGraphData(userGraph);
+      } catch (e) {
+        console.error("Error focusing on user positions:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    run();
+  }, [userFilterAddress, endpoint, showCreators, enhanceGraphDataWithCreators, initialGraphData]);
 
   const resetGraph = useCallback(() => {
     setGraphData(initialGraphData);
@@ -326,9 +387,9 @@ const GraphVisualization = ({ endpoint }) => {
       <div
         style={{
           position: "absolute",
-          top: "10px",
+          top: "82px",
           right: "10px",
-          zIndex: 10,
+          zIndex: 20,
           display: "flex",
           alignItems: "center",
           gap: "10px",
