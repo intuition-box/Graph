@@ -18,11 +18,11 @@ function App() {
   React.useEffect(() => {
     if (isConnected && address) {
       // Default selection to the connected wallet when available
-      if (!userFilterAddress) setUserFilterAddress(address);
+      if (userFilterAddress !== address) setUserFilterAddress(address);
     } else {
-      setUserFilterAddress(null);
+      if (userFilterAddress !== null) setUserFilterAddress(null);
     }
-  }, [isConnected, address]);
+  }, [isConnected, address, userFilterAddress]);
 
   // Fetch human-readable label for the connected address (e.g., ENS/Basename as indexed by Intuition)
   React.useEffect(() => {
