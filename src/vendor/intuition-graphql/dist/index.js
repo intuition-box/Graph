@@ -1494,7 +1494,7 @@ useGetAtomsCountQuery.fetcher = (variables, options) => fetcher(
   options
 );
 var GetAtomDocument = `
-    query GetAtom($id: numeric!) {
+    query GetAtom($id: String!) {
   atom(term_id: $id) {
     ...AtomMetadata
     ...AtomTxn
@@ -1715,7 +1715,7 @@ useGetVerifiedAtomDetailsQuery.fetcher = (variables, options) => fetcher(
   options
 );
 var GetAtomDetailsDocument = `
-    query GetAtomDetails($id: numeric!, $userPositionAddress: String!) {
+    query GetAtomDetails($id: String!, $userPositionAddress: String!) {
   atom(term_id: $id) {
     term_id
     label

@@ -32,10 +32,7 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
 
         if (triple.id) {
           console.log("Fetching atom details for ID:", triple.id);
-          const atomData = await fetchAtomDetails(
-            parseInt(triple.id),
-            endpoint
-          );
+          const atomData = await fetchAtomDetails(triple.id, endpoint);
           console.log("Received atom details:", atomData);
           setAtomDetails(atomData);
         }
