@@ -32,6 +32,38 @@
   flex-shrink: 0;
 }
 
+.header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 10px;
+  z-index: 1001;
+}
+
+.tunnel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.tunnel-label {
+  font-size: 12px;
+  color: #ddd;
+}
+
+.tunnel-select {
+  background: #111;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
 .env-badge {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;

@@ -6,6 +6,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { createClient } from "./api";
 import { GetAccountMetadataDocument } from "./vendor/intuition-graphql/dist/index.mjs";
+import RealityTunnel from "./RealityTunnel";
 import EndpointSelector from "./EndpointSelector";
 
 function App() {
@@ -16,7 +17,8 @@ function App() {
 
   React.useEffect(() => {
     if (isConnected && address) {
-      setUserFilterAddress(address);
+      // Default selection to the connected wallet when available
+      if (!userFilterAddress) setUserFilterAddress(address);
     } else {
       setUserFilterAddress(null);
     }
@@ -47,6 +49,12 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>0xIntuition Graph</h1>
+        <RealityTunnel
+          value={userFilterAddress || ''}
+          onChange={(addr) => setUserFilterAddress(addr)}
+          connectedAddress={address}
+          connectedLabel={accountLabel}
+        />
         <div className="header-right">
           <span className="env-badge" title="Using Intuition Testnet API">
             <span className="env-dot" /> Intuition Testnet
