@@ -15,8 +15,8 @@ export const ENDPOINTS = {
     module: BaseSepolia,
   },
   base: {
-    url: "https://prod.base.intuition-api.com/v1/graphql",
-    displayName: "Base Mainnet",
+    url: "https://testnet.intuition.sh/v1/graphql",
+    displayName: "Intuition Testnet",
     module: Base,
   },
 };

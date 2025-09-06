@@ -1,9 +1,13 @@
-import { gql, GraphQLClient } from "graphql-request";
+import { GraphQLClient } from "graphql-request";
+import {
+  GetAtomDocument,
+  GetTriplesDocument,
+} from "../vendor/intuition-graphql/dist/index.mjs";
 
 // Hardcoded Endpoints with display names
 export const ENDPOINTS = {
   baseSepolia: {
-    url: " https://dev.base.intuition-api.com/v1/graphql",
+    url: "https://dev.base.intuition-api.com/v1/graphql",
     displayName: "Base Testnet",
   },
 };
@@ -16,28 +20,22 @@ export const createClient = (endpoint) => {
 // Fetch Atom Details
 export const fetchAtomDetails = async (atomId, endpoint = "baseSepolia") => {
   const client = createClient(endpoint);
-  let query;
-  query = gql`
-    query GetAtom($atomId: numeric!) {
-      atom(id: $atomId) {
-        id
-        image
-        label
-        emoji
-        type
-        creator_id
-        vault {
-          total_shares
-        }
-      }
-    }
-  `;
-
-  const variables = { atomId };
+  const variables = { id: atomId };
 
   try {
-    const data = await client.request(query, variables);
-    return data.atom;
+    const data = await client.request(GetAtomDocument, variables);
+    const atom = data.atom;
+    if (!atom) return null;
+    const totalShares = atom.term?.vaults?.[0]?.total_shares ?? 0;
+    return {
+      id: atom.term_id,
+      image: atom.image,
+      label: atom.label,
+      emoji: atom.emoji,
+      type: atom.type,
+      creator: atom.creator || null,
+      vault: { total_shares: totalShares },
+    };
   } catch (error) {
     console.error("Error fetching atom details:", error);
     throw error;
@@ -47,121 +45,84 @@ export const fetchAtomDetails = async (atomId, endpoint = "baseSepolia") => {
 // Fetch Triples Details
 export const fetchTriples = async (endpoint = "baseSepolia") => {
   const client = createClient(endpoint);
-  let query, data;
-  query = gql`
-    query {
-      triples(limit: 1000) {
-        id
-        subject {
-          label
-          id
-          creator_id
-          type
+  const variables = { limit: 1000 };
+  const data = await client.request(GetTriplesDocument, variables);
+  const mapped = (data.triples || []).map((t) => ({
+    id: t.term_id,
+    subject: t.subject
+      ? {
+          id: t.subject.term_id,
+          label: t.subject.label,
+          type: t.subject.type,
+          creator_id: t.subject.creator?.id,
         }
-        predicate {
-          label
-          id
-          creator_id
-          type
+      : null,
+    predicate: t.predicate
+      ? {
+          id: t.predicate.term_id,
+          label: t.predicate.label,
+          type: t.predicate.type,
+          creator_id: t.predicate.creator?.id,
         }
-        object {
-          label
-          id
-          creator_id
-          type
+      : null,
+    object: t.object
+      ? {
+          id: t.object.term_id,
+          label: t.object.label,
+          type: t.object.type,
+          creator_id: t.object.creator?.id,
         }
-      }
-    }
-  `;
-  data = await client.request(query);
-  // Match the structure returned by Base.js
-  return {
-    items: data.triples,
-  }.items;
+      : null,
+  }));
+  return mapped;
 };
 
 // Fetch Embedded triples Details
 export const fetchTriplesForNode = async (nodeId, endpoint = "baseSepolia") => {
   const client = createClient(endpoint);
-  let query, data, variables;
-  query = gql`
-    query Triples($where: triples_bool_exp) {
-      triples(where: $where) {
-        id
-        subject {
-          label
-          id
-          creator_id
-          type
-        }
-        predicate {
-          label
-          id
-          creator_id
-          type
-        }
-        object {
-          label
-          id
-          creator_id
-          type
-        }
-      }
-    }
-  `;
-  variables = {
+  const variables = {
     where: {
       _or: [
-        {
-          predicate_id: {
-            _eq: nodeId,
-          },
-        },
-        {
-          subject_id: {
-            _eq: nodeId,
-          },
-        },
-        {
-          object_id: {
-            _eq: nodeId,
-          },
-        },
+        { predicate_id: { _eq: nodeId } },
+        { subject_id: { _eq: nodeId } },
+        { object_id: { _eq: nodeId } },
       ],
     },
   };
-  data = await client.request(query, variables);
-  return data.triples;
+  const data = await client.request(GetTriplesDocument, variables);
+  const mapped = (data.triples || []).map((t) => ({
+    id: t.term_id,
+    subject: t.subject
+      ? {
+          id: t.subject.term_id,
+          label: t.subject.label,
+          type: t.subject.type,
+          creator_id: t.subject.creator?.id,
+        }
+      : null,
+    predicate: t.predicate
+      ? {
+          id: t.predicate.term_id,
+          label: t.predicate.label,
+          type: t.predicate.type,
+          creator_id: t.predicate.creator?.id,
+        }
+      : null,
+    object: t.object
+      ? {
+          id: t.object.term_id,
+          label: t.object.label,
+          type: t.object.type,
+          creator_id: t.object.creator?.id,
+        }
+      : null,
+  }));
+  return mapped;
 };
 
 // Search Triples
 export const searchTriples = async (filters, endpoint = "baseSepolia") => {
   const client = createClient(endpoint);
-  const query = gql`
-    query SearchTriples($where: triples_bool_exp) {
-      triples(where: $where) {
-        id
-        subject {
-          label
-          id
-          creator_id
-          type
-        }
-        predicate {
-          label
-          id
-          creator_id
-          type
-        }
-        object {
-          label
-          id
-          creator_id
-          type
-        }
-      }
-    }
-  `;
 
   const where = {
     _and: [],
@@ -204,9 +165,36 @@ export const searchTriples = async (filters, endpoint = "baseSepolia") => {
   console.log("Executing search query with variables:", variables);
 
   try {
-    const data = await client.request(query, variables);
-    console.log("Search query response:", data);
-    return data.triples;
+    const data = await client.request(GetTriplesDocument, variables);
+    const mapped = (data.triples || []).map((t) => ({
+      id: t.term_id,
+      subject: t.subject
+        ? {
+            id: t.subject.term_id,
+            label: t.subject.label,
+            type: t.subject.type,
+            creator_id: t.subject.creator?.id,
+          }
+        : null,
+      predicate: t.predicate
+        ? {
+            id: t.predicate.term_id,
+            label: t.predicate.label,
+            type: t.predicate.type,
+            creator_id: t.predicate.creator?.id,
+          }
+        : null,
+      object: t.object
+        ? {
+            id: t.object.term_id,
+            label: t.object.label,
+            type: t.object.type,
+            creator_id: t.object.creator?.id,
+          }
+        : null,
+    }));
+    console.log("Search query response:", mapped);
+    return mapped;
   } catch (error) {
     console.error("Error executing search query:", error);
     throw error;
