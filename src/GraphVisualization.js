@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
 import { fetchTriples, fetchTriplesForNode, searchTriples, createClient } from "./api";
@@ -9,8 +9,9 @@ import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
+import { filterGraphByTrust } from "./RealityTunnel";
 
-const GraphVisualization = ({ endpoint, userFilterAddress }) => {
+const GraphVisualization = ({ endpoint, userFilterAddress, trustThreshold = 0 }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -331,6 +332,12 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
     }, 500);
   }, []);
 
+  // Apply trust threshold filter as a derived view — does not mutate base graphData
+  const displayGraphData = useMemo(
+    () => filterGraphByTrust(graphData, trustThreshold),
+    [graphData, trustThreshold]
+  );
+
   // Effect for handling search
   useEffect(() => {
     if (shouldSearch) {
@@ -475,7 +482,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
       {viewMode === "2D" && (
         <ForceGraph2D
           ref={(el) => (fgRef.current = el)}
-          graphData={graphData}
+          graphData={displayGraphData}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.label || "";
             const fontSize = 12 / globalScale;
@@ -548,7 +555,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
       {viewMode === "3D" && (
         <ForceGraph3D
           ref={(el) => (fgRef.current = el)}
-          graphData={graphData}
+          graphData={displayGraphData}
           controlType="fly"
           nodeLabel="label"
           onNodeClick={handleNodeClick}
