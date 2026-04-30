@@ -12,6 +12,7 @@ import EndpointSelector from "./EndpointSelector";
 function App() {
   const [endpoint, setEndpoint] = useState("base");
   const [userFilterAddress, setUserFilterAddress] = useState(null);
+  const [trustThreshold, setTrustThreshold] = useState(0);
   const { address, isConnected } = useAccount();
   const [accountLabel, setAccountLabel] = useState("");
 
@@ -56,8 +57,8 @@ function App() {
           connectedLabel={accountLabel}
         />
         <div className="header-right">
-          <span className="env-badge" title="Using Intuition Testnet API">
-            <span className="env-dot" /> Intuition Testnet
+          <span className="env-badge" title="Using Intuition Mainnet API">
+            <span className="env-dot" style={{ background: '#22c55e' }} /> Intuition Mainnet
           </span>
           <ConnectButton.Custom>
             {({ account, openConnectModal, openAccountModal, mounted }) => {
@@ -85,6 +86,8 @@ function App() {
         <GraphVisualization
           endpoint={endpoint}
           userFilterAddress={userFilterAddress}
+          trustThreshold={trustThreshold}
+          onTrustThresholdChange={setTrustThreshold}
         />
       </main>
     </div>
