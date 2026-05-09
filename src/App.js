@@ -12,7 +12,15 @@ import EndpointSelector from "./EndpointSelector";
 function App() {
   const [endpoint, setEndpoint] = useState("base");
   const [userFilterAddress, setUserFilterAddress] = useState(null);
-  const [trustThreshold, setTrustThreshold] = useState(0);
+  const [trustThreshold, setTrustThreshold] = useState(() => {
+    const saved = localStorage.getItem('intuition-trust-threshold');
+    return saved !== null ? Number(saved) : 0;
+  });
+
+  // Persist threshold to localStorage on change
+  React.useEffect(() => {
+    localStorage.setItem('intuition-trust-threshold', String(trustThreshold));
+  }, [trustThreshold]);
   const { address, isConnected } = useAccount();
   const [accountLabel, setAccountLabel] = useState("");
 
