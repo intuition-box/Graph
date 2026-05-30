@@ -5,6 +5,11 @@ import SpriteText from "three-spritetext";
 import { fetchTriples, fetchTriplesForNode, searchTriples, createClient } from "./api";
 import { GetTriplesWithPositionsDocument } from "./vendor/intuition-graphql/dist/index.mjs";
 import { transformToGraphData } from "./graphData";
+import {
+  computeClusters,
+  layoutAnchors,
+  makeClusterForce,
+} from "./clustering";
 import { NODE_COLORS } from "./nodeColors";
 import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
@@ -22,6 +27,54 @@ const toNum = (v) => {
 const truncate = (s, max = 22) => {
   const str = String(s || "");
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
+};
+
+// Build the contextual tooltip content for a hovered node, varying by its role
+// in the triple(s) it participates in:
+//   subject   -> just the subject label
+//   predicate -> subject -> predicate
+//   object    -> subject -> predicate -> object (its full connection)
+// A node can hold several roles across triples; we prefer the most informative
+// (object > predicate > subject) and show up to a couple of distinct triples.
+const buildHoverContext = (node) => {
+  if (!node) return null;
+  const roles = node.roles instanceof Set ? node.roles : new Set([node.role]);
+  const triples = node.triples || [];
+  const fmt = (t) => {
+    const s = truncate(t.subject?.label, 28);
+    const p = truncate(t.predicate?.label, 28);
+    const o = truncate(t.object?.label, 28);
+    if (roles.has("object") && node.id === t.object?.id) {
+      return { kind: "object", text: `${s}  →  ${p}  →  ${o}` };
+    }
+    if (roles.has("predicate") && node.id === t.predicate?.id) {
+      return { kind: "predicate", text: `${s}  →  ${p}` };
+    }
+    return { kind: "subject", text: s };
+  };
+
+  // Choose lines that describe THIS node's strongest role first.
+  const priority = { object: 3, predicate: 2, subject: 1 };
+  const lines = [];
+  const seen = new Set();
+  triples
+    .map(fmt)
+    .sort((a, b) => priority[b.kind] - priority[a.kind])
+    .forEach((l) => {
+      if (seen.has(l.text)) return;
+      seen.add(l.text);
+      if (lines.length < 3) lines.push(l);
+    });
+
+  if (lines.length === 0) {
+    return { title: truncate(node.label, 28), lines: [], role: node.role };
+  }
+  const role = lines[0].kind;
+  return {
+    title: truncate(node.label, 28),
+    role,
+    lines: lines.map((l) => l.text),
+  };
 };
 
 // Map a raw GetTriplesWithPositions triple into the {subject,predicate,object}
@@ -81,6 +134,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
   const searchTimeoutRef = useRef(null);
 
+  // Clustering + semantic zoom (level-of-detail) state.
+  const [clusterMode, setClusterMode] = useState("none"); // none | predicate | subject
+  const zoomRef = useRef(1); // live zoom k from onZoom, read inside nodeCanvasObject
+  const [tooltip, setTooltip] = useState(null); // { x, y, ctx }
+  const clusterRef = useRef({ anchors: new Map(), clusterKeyOf: () => null });
+  const didInitialFitRef = useRef(false);
+
   // Filtres
   const [subjectFilter, setSubjectFilter] = useState("");
   const [predicateFilter, setPredicateFilter] = useState("");
@@ -96,16 +156,48 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
     const fg = fgRef.current;
     if (!fg || viewMode === "VR" || typeof fg.d3Force !== "function") return;
     const nodeCount = graphData.nodes.length || 1;
-    // Scale repulsion with size: denser graphs need a bit more push.
-    const charge = -(120 + Math.min(nodeCount, 400) * 1.2);
-    fg.d3Force("charge")?.strength(charge);
-    fg.d3Force("link")?.distance(60).strength(0.4);
-    fg.d3Force(
-      "collide",
-      d3.forceCollide((n) => 8 + (n.val || 1) * 2.2).strength(0.9)
-    );
+
+    if (clusterMode === "none") {
+      // Default spread layout: stronger charge, longer links, collision.
+      clusterRef.current = { anchors: new Map(), clusterKeyOf: () => null };
+      graphData.nodes.forEach((n) => {
+        n.isAnchor = false;
+        // Release any pins the cluster layout may have set.
+        if (!n.__userPinned) {
+          n.fx = undefined;
+          n.fy = undefined;
+        }
+      });
+      const charge = -(120 + Math.min(nodeCount, 400) * 1.2);
+      fg.d3Force("charge")?.strength(charge);
+      fg.d3Force("link")?.distance(60).strength(0.4);
+      fg.d3Force("cluster", null);
+      fg.d3Force(
+        "collide",
+        d3.forceCollide((n) => 8 + (n.val || 1) * 2.2).strength(0.9)
+      );
+    } else {
+      // Clustered layout: pull members toward their predicate/subject anchor.
+      const { anchors, clusterKeyOf } = computeClusters(
+        graphData.nodes,
+        clusterMode
+      );
+      layoutAnchors(anchors, { pin: false });
+      clusterRef.current = { anchors, clusterKeyOf };
+
+      // Weaker global repulsion so the cluster force dominates; shorter,
+      // weaker links so cross-cluster links don't fight the centroid pull.
+      fg.d3Force("charge")?.strength(-60);
+      fg.d3Force("link")?.distance(34).strength(0.05);
+      fg.d3Force("cluster", makeClusterForce(anchors, clusterKeyOf, 0.16));
+      fg.d3Force(
+        "collide",
+        d3.forceCollide((n) => 6 + (n.val || 1) * 1.8).strength(0.85)
+      );
+    }
+
     if (viewMode === "2D") fg.d3ReheatSimulation?.();
-  }, [graphData, viewMode]);
+  }, [graphData, viewMode, clusterMode]);
 
   const enhanceGraphDataWithCreators = useCallback((graphData, triples) => {
     const creatorNodes = [];
@@ -349,7 +441,41 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
     if (isInitialLoad && fgRef.current) {
       setIsInitialLoad(false);
     }
-  }, [isInitialLoad]);
+    // First time the simulation settles: frame the whole graph generously and
+    // then pull WAY back so it reads as a sparse "universe" of cluster anchors.
+    if (!didInitialFitRef.current && fgRef.current && viewMode === "2D") {
+      didInitialFitRef.current = true;
+      const fg = fgRef.current;
+      try {
+        fg.zoomToFit(400, 120);
+        // Then pull back so it reads as a sparse "universe". When clustering is
+        // on we can zoom out harder (anchors stay labelled); in plain mode keep
+        // a bit more so the graph doesn't vanish into emptiness.
+        setTimeout(() => {
+          try {
+            const k = fg.zoom();
+            const factor = clusterMode === "none" ? 0.6 : 0.4;
+            fg.zoom(Math.max(k * factor, 0.1), 600);
+          } catch (e) {
+            /* noop */
+          }
+        }, 450);
+      } catch (e) {
+        /* noop */
+      }
+    }
+  }, [isInitialLoad, viewMode, clusterMode]);
+
+  // Track live zoom level for level-of-detail rendering.
+  const handleZoom = useCallback((t) => {
+    if (t && typeof t.k === "number") zoomRef.current = t.k;
+  }, []);
+
+  // Reset the one-time auto-fit whenever the underlying dataset changes, so a
+  // newly loaded graph re-frames as a universe again.
+  useEffect(() => {
+    didInitialFitRef.current = false;
+  }, [graphData, clusterMode]);
 
   const goBack = useCallback(() => {
     if (currentHistoryIndex > 0) {
@@ -478,8 +604,43 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
     }
   }, [shouldSearch, applyFilters]);
 
+  // Contextual hover: build a role-aware tooltip and keep node-hover highlight.
+  const lastMouse = useRef({ x: 0, y: 0 });
+  const handleNodeHover = useCallback((node) => {
+    setHoverNode(node || null);
+    if (!node) {
+      setTooltip(null);
+      return;
+    }
+    const ctx = buildHoverContext(node);
+    setTooltip({ ...lastMouse.current, ctx });
+  }, []);
+
+  const handleContainerMouseMove = useCallback((e) => {
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+    setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t));
+  }, []);
+
+  // Click a cluster anchor -> zoom/center into that cluster.
+  const handleNodeClickWithCluster = useCallback(
+    (node) => {
+      if (node?.isAnchor && fgRef.current && viewMode === "2D") {
+        try {
+          fgRef.current.centerAt(node.x, node.y, 600);
+          fgRef.current.zoom(Math.max(zoomRef.current, 2.2), 600);
+        } catch (e) {
+          /* noop */
+        }
+        setSelectedTriple(node);
+        return;
+      }
+      handleNodeClick(node);
+    },
+    [handleNodeClick, viewMode]
+  );
+
   return (
-    <div>
+    <div onMouseMove={handleContainerMouseMove}>
       {(isLoading || isSearching) && <LoadingAnimation />}
       <button
         className="navigation-button"
@@ -612,69 +773,202 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         </div>
       </div>
 
+      {/* Cluster-by segmented control (2D only) */}
+      {viewMode === "2D" && (
+        <div className="cluster-control">
+          <span className="cluster-control-label">Cluster by</span>
+          <div className="cluster-seg">
+            {[
+              { key: "none", label: "None" },
+              { key: "predicate", label: "Predicate" },
+              { key: "subject", label: "Subject" },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`cluster-seg-btn${
+                  clusterMode === opt.key ? " active" : ""
+                }`}
+                onClick={() => setClusterMode(opt.key)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contextual hover tooltip (role-aware) */}
+      {tooltip?.ctx && (
+        <div
+          className="graph-tooltip"
+          style={{
+            left: Math.min(tooltip.x + 14, window.innerWidth - 280),
+            top: tooltip.y + 14,
+          }}
+        >
+          <div className={`graph-tooltip-role role-${tooltip.ctx.role}`}>
+            {tooltip.ctx.role}
+          </div>
+          <div className="graph-tooltip-title">{tooltip.ctx.title}</div>
+          {tooltip.ctx.lines.map((line, i) => (
+            <div key={i} className="graph-tooltip-line">
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
+
       {viewMode === "2D" && (
         <ForceGraph2D
           ref={(el) => (fgRef.current = el)}
           graphData={graphData}
-          cooldownTicks={120}
+          cooldownTicks={160}
           warmupTicks={20}
-          onNodeHover={setHoverNode}
+          enableNodeDrag={true}
+          onZoom={handleZoom}
+          onNodeHover={handleNodeHover}
+          onNodeDragEnd={(node) => {
+            // Pin a dragged node where the user left it.
+            node.fx = node.x;
+            node.fy = node.y;
+            node.__userPinned = true;
+          }}
           nodeCanvasObject={(node, ctx, globalScale) => {
+            // Semantic zoom (level-of-detail). Three bands:
+            //   k < 0.6  -> "universe": only cluster anchors + their labels
+            //   0.6..2.2 -> "galaxy": member nodes fade/appear
+            //   k > 2.2  -> "solar system": individual member labels appear
+            const k = globalScale;
+            const clustering = clusterMode !== "none";
+            const isAnchor = clustering && node.isAnchor;
+
             const trust = node.trust;
             const hasTrust = typeof trust === "number";
-            const dotRadius = (3 + (hasTrust ? trust * 6 : 1.5)) / globalScale;
+            const isFocused =
+              hoverNode?.id === node.id || selectedTriple?.id === node.id;
 
-            // Opacity scales with trust signal so strongly-staked nodes pop.
-            const alpha = hasTrust
-              ? Math.round((0.45 + trust * 0.55) * 255)
+            // Member-node visibility ramps in as we zoom from universe->galaxy.
+            // Anchors are always fully visible. Without clustering, everything
+            // behaves like a member (so plain mode still gets LOD labels).
+            let memberAlpha = 1;
+            if (!isAnchor) {
+              if (k < 0.6) memberAlpha = clustering ? 0 : 0.25;
+              else if (k < 1.1) memberAlpha = (k - 0.6) / 0.5;
+              else memberAlpha = 1;
+            }
+            if (isFocused) memberAlpha = 1;
+            if (memberAlpha <= 0.02) {
+              node.__bckgDimensions = [2, 2];
+              return;
+            }
+
+            // Radius: anchors big and zoom-stable; members scale with trust.
+            const baseR = isAnchor
+              ? 6 + Math.min((node.triples?.length || 1) * 0.35, 8)
+              : 3 + (hasTrust ? trust * 6 : 1.5);
+            const dotRadius = baseR / k;
+
+            const a255 = Math.round(memberAlpha * 255)
+              .toString(16)
+              .padStart(2, "0");
+            const trustHex = hasTrust
+              ? Math.round((0.45 + trust * 0.55) * memberAlpha * 255)
                   .toString(16)
                   .padStart(2, "0")
-              : "CC";
+              : a255;
 
-            // Always draw a compact node dot (cheap, never overlaps text).
+            // Anchor halo so cluster centers read as "suns".
+            if (isAnchor) {
+              const halo = (baseR * 2.4) / k;
+              const grad = ctx.createRadialGradient(
+                node.x,
+                node.y,
+                dotRadius,
+                node.x,
+                node.y,
+                halo
+              );
+              grad.addColorStop(0, node.color + "55");
+              grad.addColorStop(1, node.color + "00");
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, halo, 0, 2 * Math.PI);
+              ctx.fillStyle = grad;
+              ctx.fill();
+            }
+
             ctx.beginPath();
             ctx.arc(node.x, node.y, dotRadius, 0, 2 * Math.PI);
-            ctx.fillStyle = node.color + alpha;
+            ctx.fillStyle = node.color + (isAnchor ? "FF" : trustHex);
             ctx.fill();
 
-            // Trust glow: brighter ring for higher-trust nodes.
-            if (hasTrust && trust > 0) {
-              ctx.lineWidth = (0.5 + trust * 1.5) / globalScale;
-              ctx.strokeStyle = `rgba(255,255,255,${0.2 + trust * 0.6})`;
+            // Trust glow ring + focus highlight.
+            if (isFocused) {
+              ctx.lineWidth = 2 / k;
+              ctx.strokeStyle = "#fff";
+              ctx.stroke();
+            } else if (hasTrust && trust > 0) {
+              ctx.lineWidth = (0.5 + trust * 1.5) / k;
+              ctx.strokeStyle = `rgba(255,255,255,${
+                (0.2 + trust * 0.6) * memberAlpha
+              })`;
+              ctx.stroke();
+            } else if (isAnchor) {
+              ctx.lineWidth = 1.5 / k;
+              ctx.strokeStyle = "rgba(255,255,255,0.85)";
               ctx.stroke();
             }
 
-            // Only render the text label when it won't create a hairball:
-            // on hover/selection, when zoomed in, or for notably-trusted nodes.
-            const isFocused =
-              hoverNode?.id === node.id || selectedTriple?.id === node.id;
-            const showLabel =
-              isFocused || globalScale > 1.6 || (hasTrust && trust > 0.35);
+            // ---- Labels (LOD) ----
+            // Anchors: persistent prominent labels at every zoom level.
+            // Members: labels appear when zoomed in (solar system), on focus,
+            // or for notably-trusted nodes.
+            const showMemberLabel =
+              isFocused || k > 2.2 || (hasTrust && trust > 0.4);
+            const showLabel = isAnchor || showMemberLabel;
             if (!showLabel) {
               node.__bckgDimensions = [dotRadius * 2, dotRadius * 2];
               return;
             }
 
-            const label = truncate(node.label);
-            const fontSize = (isFocused ? 11 : 9) / globalScale;
-            ctx.font = `${fontSize}px Sans-Serif`;
+            const label = truncate(node.label, isAnchor ? 26 : 22);
+            const fontPx = isAnchor
+              ? Math.max(13, isFocused ? 14 : 12)
+              : isFocused
+              ? 12
+              : 10;
+            const fontSize = fontPx / k;
+            ctx.font = `${isAnchor ? "600 " : ""}${fontSize}px Sans-Serif`;
             const textWidth = ctx.measureText(label).width;
-            const padding = 4 / globalScale;
+            const padding = (isAnchor ? 5 : 4) / k;
             const labelY = node.y + dotRadius + fontSize / 2 + padding;
 
-            // Subtle backing pill so labels stay readable over links.
-            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.globalAlpha = isAnchor ? 1 : memberAlpha;
+            ctx.fillStyle = isAnchor
+              ? "rgba(0,0,0,0.78)"
+              : "rgba(0,0,0,0.6)";
             ctx.fillRect(
               node.x - textWidth / 2 - padding,
               labelY - fontSize / 2 - padding / 2,
               textWidth + padding * 2,
               fontSize + padding
             );
+            if (isAnchor) {
+              ctx.lineWidth = 1 / k;
+              ctx.strokeStyle = node.color + "AA";
+              ctx.strokeRect(
+                node.x - textWidth / 2 - padding,
+                labelY - fontSize / 2 - padding / 2,
+                textWidth + padding * 2,
+                fontSize + padding
+              );
+            }
 
-            ctx.fillStyle = "#fff";
+            ctx.fillStyle = isAnchor ? "#fff" : "#eee";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(label, node.x, labelY);
+            ctx.globalAlpha = 1;
 
             node.__bckgDimensions = [dotRadius * 2, dotRadius * 2];
           }}
@@ -685,17 +979,22 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             ctx.arc(node.x, node.y, Math.max(r, 4), 0, 2 * Math.PI);
             ctx.fill();
           }}
-          linkColor={(l) =>
-            typeof l.trust === "number"
-              ? `rgba(120,170,255,${0.25 + l.trust * 0.65})`
-              : "#666"
-          }
+          linkColor={(l) => {
+            if (typeof l.trust === "number")
+              return `rgba(120,170,255,${0.25 + l.trust * 0.65})`;
+            // Dim inter-cluster clutter at low zoom so the universe stays sparse.
+            return clusterMode !== "none" && zoomRef.current < 1.1
+              ? "rgba(120,130,160,0.18)"
+              : "#666";
+          }}
           linkWidth={(l) => (typeof l.trust === "number" ? 1 + l.trust * 4 : 1)}
-          linkDirectionalParticles={1}
+          linkDirectionalParticles={(l) =>
+            zoomRef.current > 1.4 || typeof l.trust === "number" ? 1 : 0
+          }
           linkDirectionalParticleSpeed={0.02}
           linkDirectionalParticleColor={() => "#fff"}
           nodeAutoColorBy="type"
-          onNodeClick={handleNodeClick}
+          onNodeClick={handleNodeClickWithCluster}
           onEngineStop={handleEngineStop}
         />
       )}
