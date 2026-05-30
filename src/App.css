@@ -62,6 +62,50 @@
   border-radius: 6px;
   padding: 4px 6px;
   font-size: 12px;
+  max-width: 160px;
+}
+
+.tunnel-wide {
+  gap: 10px;
+}
+
+.tunnel-modes {
+  display: inline-flex;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.tunnel-mode {
+  background: transparent;
+  color: #cfcfcf;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tunnel-mode:hover:not(:disabled) {
+  color: #fff;
+}
+
+.tunnel-mode.active {
+  background: rgba(99, 132, 255, 0.85);
+  color: #fff;
+}
+
+.tunnel-mode:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tunnel-hint {
+  font-size: 11px;
+  color: #9aa4b2;
+  white-space: nowrap;
 }
 
 .env-badge {

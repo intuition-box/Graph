@@ -10,7 +10,57 @@ import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
 
-const GraphVisualization = ({ endpoint, userFilterAddress }) => {
+// Parse a share string to a finite number (shares are huge, but relative
+// magnitude is all we need for visual weighting).
+const toNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// Map a raw GetTriplesWithPositions triple into the {subject,predicate,object}
+// shape that transformToGraphData expects.
+const toTriple = (t) => ({
+  id: t.term_id,
+  subject: t.subject
+    ? { id: t.subject.term_id, label: t.subject.label }
+    : { id: String(t.subject_id || t.term_id), label: String(t.subject_id || t.term_id) },
+  predicate: t.predicate
+    ? { id: t.predicate.term_id, label: t.predicate.label }
+    : { id: String(t.predicate_id || t.term_id), label: String(t.predicate_id || t.term_id) },
+  object: t.object
+    ? { id: t.object.term_id, label: t.object.label }
+    : { id: String(t.object_id || t.term_id), label: String(t.object_id || t.term_id) },
+});
+
+// Annotate nodes/links with a normalized trust signal (0..1) derived from the
+// summed trust-circle shares on each triple touching the node. Sets `node.trust`
+// (for sizing), `node.val` (force-graph node size) and `link.trust`.
+const applyTrustWeights = (graph, triples, tripleWeights) => {
+  const nodeWeight = new Map();
+  triples.forEach((tr) => {
+    const w = tripleWeights[tr.id] || 0;
+    [tr.subject, tr.predicate, tr.object].forEach((e) => {
+      if (!e) return;
+      nodeWeight.set(e.id, (nodeWeight.get(e.id) || 0) + w);
+    });
+  });
+  const max = Math.max(1, ...Array.from(nodeWeight.values()));
+  graph.nodes.forEach((n) => {
+    const raw = nodeWeight.get(n.id) || 0;
+    const trust = max > 0 ? raw / max : 0;
+    n.trust = trust;
+    n.val = 1 + trust * 8;
+  });
+  const nodeTrust = (id) => nodeWeight.get(id) || 0;
+  graph.links.forEach((l) => {
+    const s = typeof l.source === "object" ? l.source.id : l.source;
+    const t = typeof l.target === "object" ? l.target.id : l.target;
+    l.trust = max > 0 ? Math.max(nodeTrust(s), nodeTrust(t)) / max : 0;
+  });
+  return graph;
+};
+
+const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -90,12 +140,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
     loadData();
   }, [showCreators, endpoint, enhanceGraphDataWithCreators]);
 
-  // Focus graph on user's positions when a filter address is provided
+  // Focus graph on user's positions when a single filter address is provided
+  // (Reality Tunnel "Single perspective" mode).
   useEffect(() => {
     const run = async () => {
       if (!userFilterAddress) {
-        // restore initial graph
-        if (initialGraphData) setGraphData(initialGraphData);
+        // restore initial graph (unless an aggregate trust-circle is active)
+        if (!trustCircle && initialGraphData) setGraphData(initialGraphData);
         return;
       }
       setIsLoading(true);
@@ -114,32 +165,36 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
         });
         const raw = data?.triples || [];
         const addrLc = String(userFilterAddress).toLowerCase();
-        const hasUserPos = (side) => {
+        const userSide = (side) => {
           const vaults = side?.vaults || [];
-          return vaults.some((v) =>
-            (v.positions || []).some((p) =>
-              String(p?.account?.id || '').toLowerCase() === addrLc
-            )
-          );
+          let shares = 0;
+          let has = false;
+          vaults.forEach((v) => {
+            (v.positions || []).forEach((p) => {
+              if (String(p?.account?.id || '').toLowerCase() === addrLc) {
+                has = true;
+                shares += toNum(p?.shares);
+              }
+            });
+          });
+          return { has, shares };
         };
-        const onlyUser = raw.filter((t) => hasUserPos(t.term) || hasUserPos(t.counter_term));
-        const triples = onlyUser.map((t) => ({
-          id: t.term_id,
-          subject: t.subject
-            ? { id: t.subject.term_id, label: t.subject.label }
-            : { id: String(t.subject_id || t.term_id) , label: String(t.subject_id || t.term_id) },
-          predicate: t.predicate
-            ? { id: t.predicate.term_id, label: t.predicate.label }
-            : { id: String(t.predicate_id || t.term_id), label: String(t.predicate_id || t.term_id) },
-          object: t.object
-            ? { id: t.object.term_id, label: t.object.label }
-            : { id: String(t.object_id || t.term_id), label: String(t.object_id || t.term_id) },
-        }));
+        const enriched = raw
+          .map((t) => {
+            const a = userSide(t.term);
+            const b = userSide(t.counter_term);
+            return { t, has: a.has || b.has, w: a.shares + b.shares };
+          })
+          .filter((x) => x.has);
+        const triples = enriched.map(({ t }) => toTriple(t));
+        const tripleWeights = {};
+        enriched.forEach(({ t, w }) => { tripleWeights[t.term_id] = w; });
 
         let userGraph = transformToGraphData(triples);
         if (showCreators) {
           userGraph = enhanceGraphDataWithCreators(userGraph, triples);
         }
+        applyTrustWeights(userGraph, triples, tripleWeights);
         setGraphData(userGraph);
       } catch (e) {
         console.error("Error focusing on user positions:", e);
@@ -148,7 +203,65 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
       }
     };
     run();
-  }, [userFilterAddress, endpoint, showCreators, enhanceGraphDataWithCreators, initialGraphData]);
+  }, [userFilterAddress, endpoint, showCreators, enhanceGraphDataWithCreators, initialGraphData, trustCircle]);
+
+  // Aggregate the graph across the whole trust circle (Reality Tunnel "My
+  // circle" / "All circle" modes). Filters triples to those any trusted account
+  // holds a position on, and weights nodes by summed trust-circle shares.
+  useEffect(() => {
+    const run = async () => {
+      const addresses = trustCircle?.addresses || [];
+      if (!trustCircle || addresses.length === 0) {
+        if (!userFilterAddress && initialGraphData) setGraphData(initialGraphData);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const client = createClient(endpoint);
+        const addrSet = new Set(addresses.map((a) => String(a).toLowerCase()));
+        const where = {
+          term: { vaults: { positions: { account_id: { _in: addresses } } } },
+        };
+        const data = await client.request(GetTriplesWithPositionsDocument, {
+          where,
+          address: "%",
+          limit: 1000,
+        });
+        const raw = data?.triples || [];
+        const circleShares = (side) => {
+          const vaults = side?.vaults || [];
+          let total = 0;
+          vaults.forEach((v) => {
+            (v.positions || []).forEach((p) => {
+              if (addrSet.has(String(p?.account?.id || '').toLowerCase())) {
+                total += toNum(p?.shares);
+              }
+            });
+          });
+          return total;
+        };
+        const enriched = raw.map((t) => ({
+          t,
+          w: circleShares(t.term) + circleShares(t.counter_term),
+        }));
+        const triples = enriched.map(({ t }) => toTriple(t));
+        const tripleWeights = {};
+        enriched.forEach(({ t, w }) => { tripleWeights[t.term_id] = w; });
+
+        let circleGraph = transformToGraphData(triples);
+        if (showCreators) {
+          circleGraph = enhanceGraphDataWithCreators(circleGraph, triples);
+        }
+        applyTrustWeights(circleGraph, triples, tripleWeights);
+        setGraphData(circleGraph);
+      } catch (e) {
+        console.error("Error building trust-circle graph:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    run();
+  }, [trustCircle, userFilterAddress, endpoint, showCreators, enhanceGraphDataWithCreators, initialGraphData]);
 
   const resetGraph = useCallback(() => {
     setGraphData(initialGraphData);
@@ -478,14 +591,22 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
           graphData={graphData}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.label || "";
-            const fontSize = 12 / globalScale;
+            const trust = node.trust;
+            const hasTrust = typeof trust === "number";
+            const fontSize = (12 + (hasTrust ? trust * 10 : 0)) / globalScale;
             ctx.font = `${fontSize}px Sans-Serif`;
 
             const textWidth = ctx.measureText(label).width;
             const padding = 10 / globalScale;
             const radius = 5 / globalScale;
 
-            ctx.fillStyle = node.color + "CC";
+            // Opacity scales with trust signal so strongly-staked nodes pop.
+            const alpha = hasTrust
+              ? Math.round((0.45 + trust * 0.55) * 255)
+                  .toString(16)
+                  .padStart(2, "0")
+              : "CC";
+            ctx.fillStyle = node.color + alpha;
             const x = node.x - textWidth / 2 - padding;
             const y = node.y - fontSize / 2 - padding;
             const width = textWidth + padding * 2;
@@ -518,6 +639,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
             ctx.closePath();
             ctx.fill();
 
+            // Trust glow: brighter ring for higher-trust nodes.
+            if (hasTrust && trust > 0) {
+              ctx.lineWidth = (1 + trust * 2) / globalScale;
+              ctx.strokeStyle = `rgba(255,255,255,${0.2 + trust * 0.6})`;
+              ctx.stroke();
+            }
+
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
@@ -535,7 +663,12 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
                 ...bckgDimensions
               );
           }}
-          linkColor={() => "#666"}
+          linkColor={(l) =>
+            typeof l.trust === "number"
+              ? `rgba(120,170,255,${0.25 + l.trust * 0.65})`
+              : "#666"
+          }
+          linkWidth={(l) => (typeof l.trust === "number" ? 1 + l.trust * 4 : 1)}
           linkDirectionalParticles={1}
           linkDirectionalParticleSpeed={0.02}
           linkDirectionalParticleColor={() => "#fff"}
@@ -552,17 +685,29 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
           controlType="fly"
           nodeLabel="label"
           onNodeClick={handleNodeClick}
-          linkColor={() => "#666"}
+          linkColor={(l) =>
+            typeof l.trust === "number"
+              ? `rgba(120,170,255,${0.25 + l.trust * 0.65})`
+              : "#666"
+          }
+          linkWidth={(l) => (typeof l.trust === "number" ? 0.5 + l.trust * 3 : 0)}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           nodeAutoColorBy="type"
           nodeThreeObject={(node) => {
+            const trust = node.trust;
+            const hasTrust = typeof trust === "number";
             const sprite = new SpriteText(node.label || "");
             sprite.borderRadius = 1;
-            sprite.backgroundColor = node.color + "CC";
+            const alpha = hasTrust
+              ? Math.round((0.45 + trust * 0.55) * 255)
+                  .toString(16)
+                  .padStart(2, "0")
+              : "CC";
+            sprite.backgroundColor = node.color + alpha;
             sprite.padding = 1;
             sprite.color = "#fff";
-            sprite.textHeight = 2;
+            sprite.textHeight = hasTrust ? 2 + trust * 4 : 2;
             return sprite;
           }}
           onEngineStop={handleEngineStop}

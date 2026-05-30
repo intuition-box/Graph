@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import "./App.css";
 import GraphVisualization from "./GraphVisualization";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -11,18 +11,23 @@ import EndpointSelector from "./EndpointSelector";
 
 function App() {
   const [endpoint, setEndpoint] = useState("base");
-  const [userFilterAddress, setUserFilterAddress] = useState(null);
+  // Reality Tunnel selection: { mode, addresses?, weights?, singleAddress? }
+  const [tunnel, setTunnel] = useState({ mode: "global" });
   const { address, isConnected } = useAccount();
   const [accountLabel, setAccountLabel] = useState("");
 
-  React.useEffect(() => {
-    if (isConnected && address) {
-      // Default selection to the connected wallet when available
-      if (userFilterAddress !== address) setUserFilterAddress(address);
-    } else {
-      if (userFilterAddress !== null) setUserFilterAddress(null);
-    }
-  }, [isConnected, address, userFilterAddress]);
+  // Single-perspective mode reuses the existing single-address filter path.
+  const userFilterAddress =
+    tunnel.mode === "single" ? tunnel.singleAddress || null : null;
+  // Aggregate trust-circle spec (mine / all) passed to the graph. Memoized on
+  // `tunnel` so the graph effects don't re-fire on every render.
+  const trustCircle = useMemo(
+    () =>
+      tunnel.mode === "mine" || tunnel.mode === "all"
+        ? { addresses: tunnel.addresses || [], weights: tunnel.weights || {} }
+        : null,
+    [tunnel]
+  );
 
   // Fetch human-readable label for the connected address (e.g., ENS/Basename as indexed by Intuition)
   React.useEffect(() => {
@@ -50,10 +55,10 @@ function App() {
       <header className="App-header">
         <h1>0xIntuition Graph</h1>
         <RealityTunnel
-          value={userFilterAddress || ''}
-          onChange={(addr) => setUserFilterAddress(addr)}
           connectedAddress={address}
           connectedLabel={accountLabel}
+          endpoint={endpoint}
+          onChange={setTunnel}
         />
         <div className="header-right">
           <span className="env-badge" title="Using Intuition Mainnet API">
@@ -85,6 +90,7 @@ function App() {
         <GraphVisualization
           endpoint={endpoint}
           userFilterAddress={userFilterAddress}
+          trustCircle={trustCircle}
         />
       </main>
     </div>
