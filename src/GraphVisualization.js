@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import * as d3 from "d3-force";
 import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
@@ -31,32 +31,25 @@ const truncate = (s, max = 22) => {
   return str.length > max ? str.slice(0, max - 1) + "…" : str;
 };
 
-// Build the contextual tooltip content for a hovered node, varying by its role
-// in the triple(s) it participates in:
-//   subject   -> just the subject label
-//   predicate -> subject -> predicate
-//   object    -> subject -> predicate -> object (its full connection)
-// A node can hold several roles across triples; we prefer the most informative
-// (object > predicate > subject) and show up to a couple of distinct triples.
+// Build the contextual tooltip content for a hovered node. In the
+// predicate-as-edge model a node is a subject or an object atom; either way we
+// show the FULL triple(s) it participates in (subject -> predicate -> object),
+// so hovering any node always reveals its relationships. We prefer the rows
+// where this node is the OBJECT (its full inbound connection) but cap to a few.
 const buildHoverContext = (node) => {
   if (!node) return null;
   const roles = node.roles instanceof Set ? node.roles : new Set([node.role]);
   const triples = node.triples || [];
   const fmt = (t) => {
-    const s = truncate(t.subject?.label, 28);
-    const p = truncate(t.predicate?.label, 28);
-    const o = truncate(t.object?.label, 28);
-    if (roles.has("object") && node.id === t.object?.id) {
-      return { kind: "object", text: `${s}  →  ${p}  →  ${o}` };
-    }
-    if (roles.has("predicate") && node.id === t.predicate?.id) {
-      return { kind: "predicate", text: `${s}  →  ${p}` };
-    }
-    return { kind: "subject", text: s };
+    const s = truncate(t.subject?.label, 26);
+    const p = truncate(t.predicate?.label, 26);
+    const o = truncate(t.object?.label, 26);
+    const kind = node.id === t.object?.id ? "object" : "subject";
+    return { kind, text: `${s}  →  ${p}  →  ${o}` };
   };
 
-  // Choose lines that describe THIS node's strongest role first.
-  const priority = { object: 3, predicate: 2, subject: 1 };
+  // Lines where this node is the object (full inbound triple) come first.
+  const priority = { object: 2, subject: 1 };
   const lines = [];
   const seen = new Set();
   triples
@@ -65,15 +58,16 @@ const buildHoverContext = (node) => {
     .forEach((l) => {
       if (seen.has(l.text)) return;
       seen.add(l.text);
-      if (lines.length < 3) lines.push(l);
+      if (lines.length < 4) lines.push(l);
     });
 
+  const role = roles.has("subject") ? "subject" : "object";
+  const title = truncate(node.label || node.id, 28) || "(unlabeled)";
   if (lines.length === 0) {
-    return { title: truncate(node.label, 28), lines: [], role: node.role };
+    return { title, lines: [], role };
   }
-  const role = lines[0].kind;
   return {
-    title: truncate(node.label, 28),
+    title,
     role,
     lines: lines.map((l) => l.text),
   };
@@ -137,13 +131,103 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   const searchTimeoutRef = useRef(null);
 
   // Clustering + semantic zoom (level-of-detail) state.
-  // "radial" is the default: subject hubs (center) -> predicate branches (mid)
-  // -> object leaves (outer), the user's primary 3-level branch vision.
-  const [clusterMode, setClusterMode] = useState("radial"); // radial | none | predicate | subject
+  // "radial" is the default: subject hubs (inner ring/center) with
+  // predicate-colored EDGES fanning out to object leaves (outer ring) within
+  // each subject's angular wedge — the user's primary branch vision.
+  const [clusterMode, setClusterMode] = useState("radial"); // radial | none | subject
   const zoomRef = useRef(1); // live zoom k from onZoom, read inside nodeCanvasObject
+  // The settled "universe" zoom (k right after auto-fit + pull-back). Because the
+  // radial layout's coordinate scale grows with subject count, the absolute zoom
+  // k at "fit" varies wildly; LOD thresholds are expressed as MULTIPLES of this
+  // baseline so the map-zoom feel is consistent regardless of graph size.
+  const universeZoomRef = useRef(0.4);
+  const radialMetaRef = useRef(null); // { r1, r2, sCount } from the radial layout
   const [tooltip, setTooltip] = useState(null); // { x, y, ctx }
   const clusterRef = useRef({ anchors: new Map(), clusterKeyOf: () => null });
   const didInitialFitRef = useRef(false);
+
+  // ---- Predicate filter (branches by relationship category) -----------------
+  // Mainnet has only ~12 distinct predicates, so we list them as toggle chips
+  // colored by their branch color. `enabledPredicates` = null means ALL on
+  // (default); otherwise it's the Set of predicateIds currently shown.
+  const [enabledPredicates, setEnabledPredicates] = useState(null);
+
+  // Distinct predicates present in the current graph (id, label, color), sorted
+  // by branch frequency so the busiest categories sit first.
+  const predicateList = useMemo(() => {
+    if (graphData.predicates && graphData.predicates.length) {
+      const counts = new Map();
+      graphData.links.forEach((l) => {
+        if (l.predicateId == null) return;
+        counts.set(l.predicateId, (counts.get(l.predicateId) || 0) + 1);
+      });
+      return [...graphData.predicates]
+        .map((p) => ({ ...p, count: counts.get(p.id) || 0 }))
+        .sort((a, b) => b.count - a.count);
+    }
+    return [];
+  }, [graphData]);
+
+  // The few biggest subject hubs (by triple count). At the lowest "universe"
+  // zoom we label ONLY these — like a map showing only major city names when
+  // fully zoomed out. Everything else stays an unlabeled dot until you zoom in.
+  const bigHubIds = useMemo(() => {
+    const subs = graphData.nodes.filter((n) => n.role === "subject");
+    const ranked = [...subs].sort(
+      (a, b) => (b.triples?.length || 0) - (a.triples?.length || 0)
+    );
+    const n = Math.min(6, Math.ceil(ranked.length * 0.04));
+    return new Set(ranked.slice(0, Math.max(1, n)).map((s) => s.id));
+  }, [graphData]);
+
+  const isPredicateOn = useCallback(
+    (pid) => enabledPredicates === null || enabledPredicates.has(pid),
+    [enabledPredicates]
+  );
+
+  const togglePredicate = useCallback(
+    (pid) => {
+      setEnabledPredicates((prev) => {
+        // First toggle off from "all on": seed with every id then remove this.
+        const base =
+          prev === null
+            ? new Set(predicateList.map((p) => p.id))
+            : new Set(prev);
+        if (base.has(pid)) base.delete(pid);
+        else base.add(pid);
+        // If everything ended up on, collapse back to null ("all").
+        if (base.size === predicateList.length) return null;
+        return base;
+      });
+    },
+    [predicateList]
+  );
+
+  const allPredicatesOn = useCallback(
+    () => setEnabledPredicates(null),
+    []
+  );
+  const onlyPredicate = useCallback(
+    (pid) => setEnabledPredicates(new Set([pid])),
+    []
+  );
+
+  // The graph actually rendered: links pruned to enabled predicates, and object
+  // leaves with no remaining inbound edge pruned too (so filtering visibly
+  // collapses branches). Subjects always stay so the universe keeps its shape.
+  const visibleGraph = useMemo(() => {
+    if (enabledPredicates === null) return graphData;
+    const links = graphData.links.filter((l) => enabledPredicates.has(l.predicateId));
+    const keepIds = new Set();
+    links.forEach((l) => {
+      keepIds.add(typeof l.source === "object" ? l.source.id : l.source);
+      keepIds.add(typeof l.target === "object" ? l.target.id : l.target);
+    });
+    const nodes = graphData.nodes.filter(
+      (n) => n.role === "subject" || keepIds.has(n.id)
+    );
+    return { nodes, links, predicates: graphData.predicates };
+  }, [graphData, enabledPredicates]);
 
   // Filtres
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -162,11 +246,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
     const nodeCount = graphData.nodes.length || 1;
 
     if (clusterMode === "radial") {
-      // 3-level radial branch layout: subjects centered, predicates at mid
-      // radius, objects at outer radius, grouped angularly by subject. Positions
-      // are PINNED for legibility; dragging a node re-pins it where dropped.
+      // 2-level radial branch layout: subject hubs on the inner ring, each
+      // subject's object leaves fanned in its own wedge at the outer ring;
+      // predicate-colored edges ARE the branches. Positions are PINNED for
+      // legibility; dragging a node re-pins it where dropped.
       clusterRef.current = { anchors: new Map(), clusterKeyOf: () => null };
-      computeRadialLayout(graphData.nodes, graphData.links);
+      const radialMeta = computeRadialLayout(graphData.nodes, graphData.links);
+      radialMetaRef.current = radialMeta;
       applyRadialPositions(graphData.nodes, { pin: true });
 
       // Forces are mostly neutralized — pins hold the tree shape. Keep a gentle
@@ -475,25 +561,34 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
       didInitialFitRef.current = true;
       const fg = fgRef.current;
       try {
-        fg.zoomToFit(400, 120);
-        // Then pull back so it reads as a sparse "universe". When clustering is
-        // on we can zoom out harder (anchors stay labelled); in plain mode keep
-        // a bit more so the graph doesn't vanish into emptiness. In radial mode
-        // land squarely in the "universe" band so only the subject hubs show.
-        setTimeout(() => {
-          try {
-            const k = fg.zoom();
-            const factor =
-              clusterMode === "radial"
-                ? 0.45
-                : clusterMode === "none"
-                ? 0.6
-                : 0.4;
-            fg.zoom(Math.max(k * factor, 0.1), 600);
-          } catch (e) {
-            /* noop */
-          }
-        }, 450);
+        const meta = radialMetaRef.current;
+        if (clusterMode === "radial" && meta && meta.r1 > 0) {
+          // Explicitly frame the hub RING: center on origin and pick a zoom so
+          // the ring (radius r1, plus its short object spokes) fills ~78% of the
+          // viewport. This guarantees a clean "universe" of subject dots — never
+          // an empty void or an off-screen ring. zoomToFit can't be trusted here
+          // because shared-object placements scatter the bounding box.
+          const W = window.innerWidth || 1600;
+          const H = window.innerHeight || 900;
+          const span = meta.r2 || meta.r1 * 1.25; // ring + spoke reach
+          const target = (0.82 * Math.min(W, H)) / (2 * span);
+          universeZoomRef.current = target;
+          fg.centerAt(0, 0, 500);
+          fg.zoom(target, 600);
+        } else {
+          fg.zoomToFit(400, 90);
+          setTimeout(() => {
+            try {
+              const k = fg.zoom();
+              const factor = clusterMode === "none" ? 0.6 : 0.5;
+              const target = Math.max(k * factor, 0.005);
+              universeZoomRef.current = target;
+              fg.zoom(target, 600);
+            } catch (e) {
+              /* noop */
+            }
+          }, 450);
+        }
       } catch (e) {
         /* noop */
       }
@@ -807,15 +902,14 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         </div>
       </div>
 
-      {/* Layout / cluster-by segmented control (2D only) */}
+      {/* Layout segmented control (2D only) */}
       {viewMode === "2D" && (
         <div className="cluster-control">
           <span className="cluster-control-label">Layout</span>
           <div className="cluster-seg">
             {[
               { key: "radial", label: "Radial" },
-              { key: "none", label: "None" },
-              { key: "predicate", label: "Predicate" },
+              { key: "none", label: "Free" },
               { key: "subject", label: "Subject" },
             ].map((opt) => (
               <button
@@ -829,6 +923,49 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
                 {opt.label}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Predicate filter — toggle branch categories by color (2D only). */}
+      {viewMode === "2D" && predicateList.length > 0 && (
+        <div className="predicate-filter">
+          <div className="predicate-filter-head">
+            <span className="cluster-control-label">Predicates (branches)</span>
+            <button
+              type="button"
+              className="predicate-all-btn"
+              onClick={allPredicatesOn}
+              disabled={enabledPredicates === null}
+            >
+              All
+            </button>
+          </div>
+          <div className="predicate-chips">
+            {predicateList.map((p) => {
+              const on = isPredicateOn(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  title={`${p.label} (${p.count}) — click to toggle, shift-click to isolate`}
+                  className={`predicate-chip${on ? "" : " off"}`}
+                  style={{
+                    borderColor: p.color,
+                    background: on ? p.color + "33" : "transparent",
+                  }}
+                  onClick={(e) =>
+                    e.shiftKey ? onlyPredicate(p.id) : togglePredicate(p.id)
+                  }
+                >
+                  <span
+                    className="predicate-chip-dot"
+                    style={{ background: p.color }}
+                  />
+                  {truncate(p.label, 18)}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -857,7 +994,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
       {viewMode === "2D" && (
         <ForceGraph2D
           ref={(el) => (fgRef.current = el)}
-          graphData={graphData}
+          graphData={visibleGraph}
           cooldownTicks={160}
           warmupTicks={20}
           enableNodeDrag={true}
@@ -870,42 +1007,39 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             node.__userPinned = true;
           }}
           nodeCanvasObject={(node, ctx, globalScale) => {
-            // Semantic zoom (level-of-detail). Three bands:
-            //   k < 0.6  -> "universe": only cluster anchors + their labels
-            //   0.6..2.2 -> "galaxy": member nodes fade/appear
-            //   k > 2.2  -> "solar system": individual member labels appear
+            // Semantic "map" zoom (level-of-detail), expressed as a RATIO to the
+            // settled universe zoom so it feels the same at any graph size. Like
+            // a map that shows only dots fully zoomed out and reveals names as
+            // you zoom in:
+            //   z < 1.3 -> "universe": subject hubs as dots (objects hidden),
+            //              only the biggest hubs labelled.
+            //   1.3..3  -> "region": object leaves fade in.
+            //   z > ~3  -> "streets": hub labels then object labels appear.
             const k = globalScale;
+            const z = k / (universeZoomRef.current || 0.4);
             const clustering = clusterMode !== "none";
             const isRadial = clusterMode === "radial";
             const isAnchor = clustering && node.isAnchor;
+            const isBigHub = isAnchor && bigHubIds.has(node.id);
 
             const trust = node.trust;
             const hasTrust = typeof trust === "number";
             const isFocused =
               hoverNode?.id === node.id || selectedTriple?.id === node.id;
 
-            // Member-node visibility ramps in as we zoom from universe->galaxy.
-            // Anchors are always fully visible. Without clustering, everything
-            // behaves like a member (so plain mode still gets LOD labels).
+            // Object-leaf visibility ramps in as we zoom from universe->region.
+            // Subject hubs (anchors) are always visible as dots. Without
+            // clustering everything behaves like a leaf (plain mode still LODs).
             let memberAlpha = 1;
             if (!isAnchor) {
               if (isRadial) {
-                // 3-tier radial reveal keyed to branch level:
-                //   universe (k<0.5): only subject hubs (anchors) visible.
-                //   branches (0.5..1.4): predicate branches (level 2) fade in.
-                //   leaves   (k>1.0):   object leaves (level 3) fade in.
-                const lvl = node.__radLevel || 3;
-                if (lvl === 2) {
-                  if (k < 0.5) memberAlpha = 0;
-                  else if (k < 0.9) memberAlpha = (k - 0.5) / 0.4;
-                  else memberAlpha = 1;
-                } else {
-                  if (k < 1.0) memberAlpha = 0;
-                  else if (k < 1.7) memberAlpha = (k - 1.0) / 0.7;
-                  else memberAlpha = 1;
-                }
-              } else if (k < 0.6) memberAlpha = clustering ? 0 : 0.25;
-              else if (k < 1.1) memberAlpha = (k - 0.6) / 0.5;
+                // Object leaves: hidden in the universe band, fade in as you
+                // zoom past it so the zoomed-out view is clean subject dots.
+                if (z < 1.4) memberAlpha = 0;
+                else if (z < 2.6) memberAlpha = (z - 1.4) / 1.2;
+                else memberAlpha = 1;
+              } else if (z < 1.4) memberAlpha = clustering ? 0 : 0.3;
+              else if (z < 2.6) memberAlpha = (z - 1.4) / 1.2;
               else memberAlpha = 1;
             }
             if (isFocused) memberAlpha = 1;
@@ -914,14 +1048,11 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
               return;
             }
 
-            // Radius: anchors big and zoom-stable; members scale with trust.
-            // In radial mode predicate branches (level 2) read a bit bigger than
-            // object leaves (level 3) so the 3-level hierarchy is legible.
-            const radialBoost =
-              isRadial && !isAnchor ? (node.__radLevel === 2 ? 1.8 : 0) : 0;
+            // Radius: subject hubs big and zoom-stable (scale with branch
+            // count); object leaves small (scale with trust when present).
             const baseR = isAnchor
-              ? 6 + Math.min((node.triples?.length || 1) * 0.35, 8)
-              : 3 + radialBoost + (hasTrust ? trust * 6 : 1.5);
+              ? 6 + Math.min((node.triples?.length || 1) * 0.3, 9)
+              : 3 + (hasTrust ? trust * 6 : 1.2);
             const dotRadius = baseR / k;
 
             const a255 = Math.round(memberAlpha * 255)
@@ -974,19 +1105,21 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
               ctx.stroke();
             }
 
-            // ---- Labels (LOD) ----
-            // Anchors: persistent prominent labels at every zoom level.
-            // Members: labels appear when zoomed in (solar system), on focus,
-            // or for notably-trusted nodes. In radial mode predicate-branch
-            // labels resolve earlier (k>1.2) than object-leaf labels (k>2.0).
-            let showMemberLabel =
-              isFocused || k > 2.2 || (hasTrust && trust > 0.4);
-            if (isRadial && !isAnchor) {
-              const lvl = node.__radLevel || 3;
-              showMemberLabel =
-                isFocused || (lvl === 2 ? k > 1.2 : k > 2.0);
+            // ---- Labels (map-like LOD) ----
+            // At the lowest "universe" zoom we label ONLY the biggest hubs —
+            // like a map showing just major city names. As you zoom in,
+            // subject-hub labels appear first (z>1.6), then object-leaf labels
+            // (z>3) — like a map revealing street names. Hover/focus always
+            // labels regardless of zoom.
+            let showLabel;
+            if (isAnchor) {
+              if (isFocused) showLabel = true;
+              else if (z < 1.4) showLabel = isBigHub; // universe: big hubs only
+              else showLabel = z > 1.6; // region+: all hub labels
+            } else {
+              showLabel =
+                isFocused || (hasTrust && trust > 0.4) || z > 3.0;
             }
-            const showLabel = isAnchor || showMemberLabel;
             if (!showLabel) {
               node.__bckgDimensions = [dotRadius * 2, dotRadius * 2];
               return;
@@ -1041,19 +1174,67 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             ctx.fill();
           }}
           linkColor={(l) => {
-            if (typeof l.trust === "number")
-              return `rgba(120,170,255,${0.25 + l.trust * 0.65})`;
-            // Dim inter-cluster clutter at low zoom so the universe stays sparse.
-            return clusterMode !== "none" && zoomRef.current < 1.1
-              ? "rgba(120,130,160,0.18)"
-              : "#666";
+            // Each edge IS a predicate branch — color it by its predicate. At
+            // the zoomed-out "universe" level fade branches so subject dots read
+            // cleanly; they strengthen as you zoom in (map-like).
+            const base = l.color || "#888";
+            const z = zoomRef.current / (universeZoomRef.current || 0.4);
+            let a;
+            if (typeof l.trust === "number") a = 0.4 + l.trust * 0.55;
+            else if (z < 1.4) a = 0.16;
+            else if (z < 2.6) a = 0.16 + (z - 1.4) * (0.64 / 1.2);
+            else a = 0.8;
+            const hex = Math.round(Math.min(a, 1) * 255)
+              .toString(16)
+              .padStart(2, "0");
+            return base + hex;
           }}
-          linkWidth={(l) => (typeof l.trust === "number" ? 1 + l.trust * 4 : 1)}
+          linkWidth={(l) =>
+            typeof l.trust === "number"
+              ? 1 + l.trust * 4
+              : zoomRef.current / (universeZoomRef.current || 0.4) > 2
+              ? 1.4
+              : 1
+          }
           linkDirectionalParticles={(l) =>
-            zoomRef.current > 1.4 || typeof l.trust === "number" ? 1 : 0
+            zoomRef.current / (universeZoomRef.current || 0.4) > 3 ||
+            typeof l.trust === "number"
+              ? 1
+              : 0
           }
           linkDirectionalParticleSpeed={0.02}
-          linkDirectionalParticleColor={() => "#fff"}
+          linkDirectionalParticleColor={(l) => l.color || "#fff"}
+          linkCanvasObjectMode={() => "after"}
+          linkCanvasObject={(link, ctx, globalScale) => {
+            // Map-like predicate edge-labels: reveal predicate names on the
+            // branches only when zoomed well in (z>3.4), or when either endpoint
+            // is hovered/selected. Keeps the universe clean, names appear like
+            // street labels as you zoom.
+            const k = globalScale;
+            const z = k / (universeZoomRef.current || 0.4);
+            const s = link.source;
+            const t = link.target;
+            if (!s || !t || typeof s.x !== "number" || typeof t.x !== "number")
+              return;
+            const focused =
+              hoverNode &&
+              (hoverNode.id === s.id || hoverNode.id === t.id);
+            if (!focused && z < 3.4) return;
+            const label = truncate(link.predicate, 22);
+            if (!label) return;
+            const mx = (s.x + t.x) / 2;
+            const my = (s.y + t.y) / 2;
+            const fontSize = (focused ? 11 : 9) / k;
+            ctx.font = `${fontSize}px Sans-Serif`;
+            const w = ctx.measureText(label).width;
+            const pad = 3 / k;
+            ctx.fillStyle = "rgba(10,12,18,0.72)";
+            ctx.fillRect(mx - w / 2 - pad, my - fontSize / 2 - pad, w + pad * 2, fontSize + pad * 2);
+            ctx.fillStyle = (link.color || "#ddd") + "FF";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, mx, my);
+          }}
           nodeAutoColorBy="type"
           onNodeClick={handleNodeClickWithCluster}
           onEngineStop={handleEngineStop}
@@ -1063,16 +1244,12 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
       {viewMode === "3D" && (
         <ForceGraph3D
           ref={(el) => (fgRef.current = el)}
-          graphData={graphData}
+          graphData={visibleGraph}
           controlType="fly"
           nodeLabel="label"
           onNodeClick={handleNodeClick}
-          linkColor={(l) =>
-            typeof l.trust === "number"
-              ? `rgba(120,170,255,${0.25 + l.trust * 0.65})`
-              : "#666"
-          }
-          linkWidth={(l) => (typeof l.trust === "number" ? 0.5 + l.trust * 3 : 0)}
+          linkColor={(l) => l.color || "#888"}
+          linkWidth={(l) => (typeof l.trust === "number" ? 0.5 + l.trust * 3 : 0.5)}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           nodeAutoColorBy="type"
@@ -1105,7 +1282,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
 
       {viewMode === "VR" && (
         <GraphVR
-          graphData={graphData}
+          graphData={visibleGraph}
           onNodeClick={handleNodeClick}
           onBack={goBack}
           onForward={goForward}

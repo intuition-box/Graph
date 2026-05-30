@@ -1,20 +1,31 @@
 // src/graphData.js
-import { getNodeColor } from "./nodeColors";
+import { getNodeColor, getPredicateColor } from "./nodeColors";
 
-// Transform raw triples (subject -> predicate -> object) into force-graph data.
+// Transform raw triples (subject -> predicate -> object) into force-graph data
+// under the PREDICATE-AS-EDGE model:
 //
-// Each node is annotated with the triple-membership metadata the visualization
-// needs for two features:
-//   - clustering: `predicateGroups` / `subjectGroups` (the cluster keys this
-//     node belongs to) so a cluster force can pull it toward a centroid.
-//   - contextual hover: `triples` (the {subject,predicate,object} triples this
-//     node participates in) so the tooltip can show the relevant connection(s).
-// A single atom can play different roles across triples (subject here, object
-// there), so we accumulate a Set of roles and the list of triples.
+//   * Nodes are ONLY the distinct subject and object atoms. A predicate is a
+//     relationship CATEGORY, not a node — it is rendered as the colored,
+//     labeled EDGE between a subject and an object.
+//   * One link per triple: subject -> object, carrying the predicate label,
+//     predicateId and a stable per-predicate color. The same object reached by
+//     many subjects is a SINGLE shared node (a popular leaf many branches hit);
+//     we never duplicate it.
+//   * An atom that is a subject in one triple and an object in another is one
+//     node. Its primary level is: ever-a-subject -> level 1 (center hub), else
+//     object -> level 2 (outer leaf).
+//
+// Every node keeps the metadata the visualization needs:
+//   - `roles`  (Set of "subject"/"object") + `role` (primary)
+//   - `triples` (the {subject,predicate,object} it participates in) for the
+//     contextual hover tooltip
+//   - `predicateGroups` / `subjectGroups` cluster keys (kept for layout helpers)
 export const transformToGraphData = (triples) => {
   const nodes = [];
   const links = [];
   const nodeMap = new Map();
+  // Track distinct predicates so callers (filter UI) can list categories.
+  const predicates = new Map(); // predicateId -> { id, label, color }
 
   const ensureNode = (entity, role) => {
     if (!entity) return null;
@@ -23,6 +34,7 @@ export const transformToGraphData = (triples) => {
       node = {
         id: entity.id,
         label: entity.label,
+        type: entity.type,
         isTriple: false,
         color: getNodeColor(role),
         role,
@@ -35,11 +47,11 @@ export const transformToGraphData = (triples) => {
       nodes.push(node);
     } else {
       node.roles.add(role);
-      // A predicate that is also seen as a subject elsewhere keeps its predicate
-      // colour (predicates are the most useful anchors); otherwise first role wins.
-      if (role === "predicate") {
-        node.color = getNodeColor("predicate");
-        node.role = "predicate";
+      // Subject wins as the primary role/color: a node ever used as a subject is
+      // a center hub; an object-only node is an outer leaf.
+      if (role === "subject") {
+        node.color = getNodeColor("subject");
+        node.role = "subject";
       }
     }
     return node;
@@ -50,32 +62,37 @@ export const transformToGraphData = (triples) => {
     if (!subject || !predicate || !object) return;
 
     const sNode = ensureNode(subject, "subject");
-    const pNode = ensureNode(predicate, "predicate");
     const oNode = ensureNode(object, "object");
 
-    // Record triple membership + cluster keys on every participating node.
-    [sNode, pNode, oNode].forEach((n) => {
+    const color = getPredicateColor(predicate.id);
+    if (!predicates.has(predicate.id)) {
+      predicates.set(predicate.id, {
+        id: predicate.id,
+        label: predicate.label,
+        color,
+      });
+    }
+
+    // Record triple membership + cluster keys on the participating atoms.
+    [sNode, oNode].forEach((n) => {
       if (!n) return;
       n.triples.push({ subject, predicate, object });
       n.predicateGroups.add(predicate.id);
       n.subjectGroups.add(subject.id);
     });
 
+    // ONE predicate-colored edge per triple: subject -> object.
     links.push({
       source: subject.id,
-      target: predicate.id,
-      type: "subject-to-predicate",
-      predicateId: predicate.id,
-      subjectId: subject.id,
-    });
-    links.push({
-      source: predicate.id,
       target: object.id,
-      type: "predicate-to-object",
+      type: "predicate-edge",
+      predicate: predicate.label,
       predicateId: predicate.id,
       subjectId: subject.id,
+      objectId: object.id,
+      color,
     });
   });
 
-  return { nodes, links };
+  return { nodes, links, predicates: Array.from(predicates.values()) };
 };

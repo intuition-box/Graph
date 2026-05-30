@@ -48,6 +48,25 @@ const GraphLegend = ({ showCreators = false }) => {
             {role.charAt(0).toUpperCase() + role.slice(1)}
           </li>
         ))}
+        <li
+          style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: "5px",
+          }}
+        >
+          <span
+            style={{
+              width: "15px",
+              height: "3px",
+              background:
+                "linear-gradient(90deg,#FF7300,#27D3C4,#A66BFF)",
+              display: "inline-block",
+              marginRight: "10px",
+            }}
+          ></span>
+          Predicate (edge)
+        </li>
       </ul>
     </div>
   );
