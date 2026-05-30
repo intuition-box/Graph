@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import * as d3 from "d3-force";
 import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
 import { fetchTriples, fetchTriplesForNode, searchTriples, createClient } from "./api";
@@ -15,6 +16,12 @@ import LoadingAnimation from "./LoadingAnimation";
 const toNum = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+};
+
+// Truncate long labels so they don't overflow into neighbouring nodes.
+const truncate = (s, max = 22) => {
+  const str = String(s || "");
+  return str.length > max ? str.slice(0, max - 1) + "…" : str;
 };
 
 // Map a raw GetTriplesWithPositions triple into the {subject,predicate,object}
@@ -65,6 +72,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [viewMode, setViewMode] = useState("2D");
+  const [hoverNode, setHoverNode] = useState(null);
   const [selectedTriple, setSelectedTriple] = useState(null);
   const [showCreators, setShowCreators] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +87,25 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   const [objectFilter, setObjectFilter] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [shouldSearch, setShouldSearch] = useState(false);
+
+  // Spread nodes out so the graph stops rendering as an overlapping blob:
+  // stronger charge repulsion, longer links, and a collision force keyed to node
+  // size. Re-applied whenever the data or view mode changes (the force-graph
+  // rebuilds its simulation on those transitions).
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg || viewMode === "VR" || typeof fg.d3Force !== "function") return;
+    const nodeCount = graphData.nodes.length || 1;
+    // Scale repulsion with size: denser graphs need a bit more push.
+    const charge = -(120 + Math.min(nodeCount, 400) * 1.2);
+    fg.d3Force("charge")?.strength(charge);
+    fg.d3Force("link")?.distance(60).strength(0.4);
+    fg.d3Force(
+      "collide",
+      d3.forceCollide((n) => 8 + (n.val || 1) * 2.2).strength(0.9)
+    );
+    if (viewMode === "2D") fg.d3ReheatSimulation?.();
+  }, [graphData, viewMode]);
 
   const enhanceGraphDataWithCreators = useCallback((graphData, triples) => {
     const creatorNodes = [];
@@ -589,16 +616,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         <ForceGraph2D
           ref={(el) => (fgRef.current = el)}
           graphData={graphData}
+          cooldownTicks={120}
+          warmupTicks={20}
+          onNodeHover={setHoverNode}
           nodeCanvasObject={(node, ctx, globalScale) => {
-            const label = node.label || "";
             const trust = node.trust;
             const hasTrust = typeof trust === "number";
-            const fontSize = (12 + (hasTrust ? trust * 10 : 0)) / globalScale;
-            ctx.font = `${fontSize}px Sans-Serif`;
-
-            const textWidth = ctx.measureText(label).width;
-            const padding = 10 / globalScale;
-            const radius = 5 / globalScale;
+            const dotRadius = (3 + (hasTrust ? trust * 6 : 1.5)) / globalScale;
 
             // Opacity scales with trust signal so strongly-staked nodes pop.
             const alpha = hasTrust
@@ -606,62 +630,60 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
                   .toString(16)
                   .padStart(2, "0")
               : "CC";
-            ctx.fillStyle = node.color + alpha;
-            const x = node.x - textWidth / 2 - padding;
-            const y = node.y - fontSize / 2 - padding;
-            const width = textWidth + padding * 2;
-            const height = fontSize + padding * 2;
-            const bckgDimensions = [width, height];
 
+            // Always draw a compact node dot (cheap, never overlaps text).
             ctx.beginPath();
-            ctx.arc(x + radius, y + radius, radius, Math.PI, 1.5 * Math.PI);
-            ctx.arc(
-              x + width - radius,
-              y + radius,
-              radius,
-              1.5 * Math.PI,
-              2 * Math.PI
-            );
-            ctx.arc(
-              x + width - radius,
-              y + height - radius,
-              radius,
-              0,
-              0.5 * Math.PI
-            );
-            ctx.arc(
-              x + radius,
-              y + height - radius,
-              radius,
-              0.5 * Math.PI,
-              Math.PI
-            );
-            ctx.closePath();
+            ctx.arc(node.x, node.y, dotRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = node.color + alpha;
             ctx.fill();
 
             // Trust glow: brighter ring for higher-trust nodes.
             if (hasTrust && trust > 0) {
-              ctx.lineWidth = (1 + trust * 2) / globalScale;
+              ctx.lineWidth = (0.5 + trust * 1.5) / globalScale;
               ctx.strokeStyle = `rgba(255,255,255,${0.2 + trust * 0.6})`;
               ctx.stroke();
             }
 
+            // Only render the text label when it won't create a hairball:
+            // on hover/selection, when zoomed in, or for notably-trusted nodes.
+            const isFocused =
+              hoverNode?.id === node.id || selectedTriple?.id === node.id;
+            const showLabel =
+              isFocused || globalScale > 1.6 || (hasTrust && trust > 0.35);
+            if (!showLabel) {
+              node.__bckgDimensions = [dotRadius * 2, dotRadius * 2];
+              return;
+            }
+
+            const label = truncate(node.label);
+            const fontSize = (isFocused ? 11 : 9) / globalScale;
+            ctx.font = `${fontSize}px Sans-Serif`;
+            const textWidth = ctx.measureText(label).width;
+            const padding = 4 / globalScale;
+            const labelY = node.y + dotRadius + fontSize / 2 + padding;
+
+            // Subtle backing pill so labels stay readable over links.
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(
+              node.x - textWidth / 2 - padding,
+              labelY - fontSize / 2 - padding / 2,
+              textWidth + padding * 2,
+              fontSize + padding
+            );
+
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(label, node.x, node.y);
+            ctx.fillText(label, node.x, labelY);
 
-            node.__bckgDimensions = bckgDimensions;
+            node.__bckgDimensions = [dotRadius * 2, dotRadius * 2];
           }}
           nodePointerAreaPaint={(node, color, ctx) => {
             ctx.fillStyle = color;
-            const bckgDimensions = node.__bckgDimensions;
-            bckgDimensions &&
-              ctx.fillRect(
-                node.x - bckgDimensions[0] / 2,
-                node.y - bckgDimensions[1] / 2,
-                ...bckgDimensions
-              );
+            const r = (node.__bckgDimensions?.[0] || 6) / 2;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, Math.max(r, 4), 0, 2 * Math.PI);
+            ctx.fill();
           }}
           linkColor={(l) =>
             typeof l.trust === "number"
@@ -694,10 +716,16 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           nodeAutoColorBy="type"
+          nodeRelSize={4}
           nodeThreeObject={(node) => {
             const trust = node.trust;
             const hasTrust = typeof trust === "number";
-            const sprite = new SpriteText(node.label || "");
+            // Only label notably-trusted nodes to avoid a wall of text. Global
+            // view (no trust signal) shows no sprite labels — nodes keep their
+            // colored sphere + hover tooltip (nodeLabel="label").
+            const labelled = hasTrust && trust > 0.35;
+            if (!labelled) return false;
+            const sprite = new SpriteText(truncate(node.label, 18));
             sprite.borderRadius = 1;
             const alpha = hasTrust
               ? Math.round((0.45 + trust * 0.55) * 255)
@@ -707,9 +735,10 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             sprite.backgroundColor = node.color + alpha;
             sprite.padding = 1;
             sprite.color = "#fff";
-            sprite.textHeight = hasTrust ? 2 + trust * 4 : 2;
+            sprite.textHeight = hasTrust ? 3 + trust * 4 : 3;
             return sprite;
           }}
+          nodeThreeObjectExtend={true}
           onEngineStop={handleEngineStop}
         />
       )}

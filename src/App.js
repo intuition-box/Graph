@@ -9,12 +9,38 @@ import { GetAccountMetadataDocument } from "./vendor/intuition-graphql/dist/inde
 import RealityTunnel from "./RealityTunnel";
 import EndpointSelector from "./EndpointSelector";
 
+// Test-address override: a real mainnet account with a 7-position trust circle
+// (6 unique trusted accounts). Used when ?address= is present without a value.
+const DEFAULT_TEST_ADDRESS = "0x34E3f9567aee97397Ac7A002dF2ef4f30193F1A6";
+
+// Read a ?address=0x... override from the URL. Lets the Reality Tunnel trust
+// modes be exercised without connecting a wallet. An empty `?address` (no value)
+// falls back to the documented test account. Returns null when absent.
+// NOTE: returned AS-IS (checksum casing preserved) — account(id:) needs it.
+const getAddressOverride = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("address")) return null;
+    const v = (params.get("address") || "").trim();
+    return v || DEFAULT_TEST_ADDRESS;
+  } catch {
+    return null;
+  }
+};
+
 function App() {
   const [endpoint, setEndpoint] = useState("base");
   // Reality Tunnel selection: { mode, addresses?, weights?, singleAddress? }
   const [tunnel, setTunnel] = useState({ mode: "global" });
-  const { address, isConnected } = useAccount();
+  const { address: connectedWallet, isConnected } = useAccount();
   const [accountLabel, setAccountLabel] = useState("");
+
+  // Precedence: a real connected wallet always wins; the ?address= URL override
+  // is the fallback for driving trust modes without connecting. The effective
+  // address un-gates the trust modes and feeds the trust-circle queries.
+  const addressOverride = useMemo(() => getAddressOverride(), []);
+  const address = connectedWallet || addressOverride;
+  const hasEffectiveAddress = isConnected || !!addressOverride;
 
   // Single-perspective mode reuses the existing single-address filter path.
   const userFilterAddress =
@@ -29,16 +55,18 @@ function App() {
     [tunnel]
   );
 
-  // Fetch human-readable label for the connected address (e.g., ENS/Basename as indexed by Intuition)
+  // Fetch human-readable label for the effective address (e.g., ENS/Basename as
+  // indexed by Intuition). Uses the connected wallet or the ?address= override.
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!isConnected || !address) {
+      if (!hasEffectiveAddress || !address) {
         setAccountLabel("");
         return;
       }
       try {
         const client = createClient(endpoint);
+        // Pass `address` AS-IS — account(id:) is checksum-sensitive on mainnet.
         const data = await client.request(GetAccountMetadataDocument, { address });
         const label = data?.account?.label || "";
         if (!cancelled) setAccountLabel(label);
@@ -48,7 +76,7 @@ function App() {
     };
     run();
     return () => { cancelled = true; };
-  }, [isConnected, address, endpoint]);
+  }, [hasEffectiveAddress, address, endpoint]);
 
   return (
     <div className="App">

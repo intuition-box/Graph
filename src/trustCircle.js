@@ -45,6 +45,9 @@ const TRUST_CIRCLE_QUERY = `
 export const fetchTrustCircle = async (address, endpoint = "base") => {
   if (!address) return [];
   const client = createClient(endpoint);
+  // CRITICAL: pass `address` AS-IS. Intuition mainnet account ids are
+  // checksum-cased — account(id:"0x34E3...F1A6") resolves, but the lowercased id
+  // returns null. Never `.toLowerCase()` the id handed to account(id:).
   const data = await client.request(TRUST_CIRCLE_QUERY, { address, limit: 200 });
   const positions = data?.account?.positions || [];
 

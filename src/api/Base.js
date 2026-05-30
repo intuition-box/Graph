@@ -43,7 +43,9 @@ export const fetchAtomDetails = async (atomId, endpoint = "base") => {
 // Fetch Triples Details
 export const fetchTriples = async (endpoint = "base") => {
   const client = createClient(endpoint);
-  const variables = { limit: 1000 };
+  // Cap the Global view so it stays legible instead of an overlapping hairball.
+  // 250 triples is still representative but keeps node/label density readable.
+  const variables = { limit: 250 };
   const data = await client.request(GetTriplesDocument, variables);
   const mapped = (data.triples || []).map((t) => ({
     id: t.term_id,
