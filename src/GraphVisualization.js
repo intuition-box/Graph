@@ -9,6 +9,8 @@ import {
   computeClusters,
   layoutAnchors,
   makeClusterForce,
+  computeRadialLayout,
+  applyRadialPositions,
 } from "./clustering";
 import { NODE_COLORS } from "./nodeColors";
 import GraphLegend from "./GraphLegend";
@@ -135,7 +137,9 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   const searchTimeoutRef = useRef(null);
 
   // Clustering + semantic zoom (level-of-detail) state.
-  const [clusterMode, setClusterMode] = useState("none"); // none | predicate | subject
+  // "radial" is the default: subject hubs (center) -> predicate branches (mid)
+  // -> object leaves (outer), the user's primary 3-level branch vision.
+  const [clusterMode, setClusterMode] = useState("radial"); // radial | none | predicate | subject
   const zoomRef = useRef(1); // live zoom k from onZoom, read inside nodeCanvasObject
   const [tooltip, setTooltip] = useState(null); // { x, y, ctx }
   const clusterRef = useRef({ anchors: new Map(), clusterKeyOf: () => null });
@@ -157,7 +161,24 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
     if (!fg || viewMode === "VR" || typeof fg.d3Force !== "function") return;
     const nodeCount = graphData.nodes.length || 1;
 
-    if (clusterMode === "none") {
+    if (clusterMode === "radial") {
+      // 3-level radial branch layout: subjects centered, predicates at mid
+      // radius, objects at outer radius, grouped angularly by subject. Positions
+      // are PINNED for legibility; dragging a node re-pins it where dropped.
+      clusterRef.current = { anchors: new Map(), clusterKeyOf: () => null };
+      computeRadialLayout(graphData.nodes, graphData.links);
+      applyRadialPositions(graphData.nodes, { pin: true });
+
+      // Forces are mostly neutralized — pins hold the tree shape. Keep a gentle
+      // collision so overlapping leaves nudge apart without breaking the radii.
+      fg.d3Force("charge")?.strength(-30);
+      fg.d3Force("link")?.strength(0);
+      fg.d3Force("cluster", null);
+      fg.d3Force(
+        "collide",
+        d3.forceCollide((n) => 4 + (n.val || 1) * 1.4).strength(0.4)
+      );
+    } else if (clusterMode === "none") {
       // Default spread layout: stronger charge, longer links, collision.
       clusterRef.current = { anchors: new Map(), clusterKeyOf: () => null };
       graphData.nodes.forEach((n) => {
@@ -178,6 +199,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
       );
     } else {
       // Clustered layout: pull members toward their predicate/subject anchor.
+      // Release any radial pins first (radial mode pins every node's fx/fy).
+      graphData.nodes.forEach((n) => {
+        if (!n.__userPinned) {
+          n.fx = undefined;
+          n.fy = undefined;
+        }
+      });
       const { anchors, clusterKeyOf } = computeClusters(
         graphData.nodes,
         clusterMode
@@ -450,11 +478,17 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         fg.zoomToFit(400, 120);
         // Then pull back so it reads as a sparse "universe". When clustering is
         // on we can zoom out harder (anchors stay labelled); in plain mode keep
-        // a bit more so the graph doesn't vanish into emptiness.
+        // a bit more so the graph doesn't vanish into emptiness. In radial mode
+        // land squarely in the "universe" band so only the subject hubs show.
         setTimeout(() => {
           try {
             const k = fg.zoom();
-            const factor = clusterMode === "none" ? 0.6 : 0.4;
+            const factor =
+              clusterMode === "radial"
+                ? 0.45
+                : clusterMode === "none"
+                ? 0.6
+                : 0.4;
             fg.zoom(Math.max(k * factor, 0.1), 600);
           } catch (e) {
             /* noop */
@@ -773,12 +807,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         </div>
       </div>
 
-      {/* Cluster-by segmented control (2D only) */}
+      {/* Layout / cluster-by segmented control (2D only) */}
       {viewMode === "2D" && (
         <div className="cluster-control">
-          <span className="cluster-control-label">Cluster by</span>
+          <span className="cluster-control-label">Layout</span>
           <div className="cluster-seg">
             {[
+              { key: "radial", label: "Radial" },
               { key: "none", label: "None" },
               { key: "predicate", label: "Predicate" },
               { key: "subject", label: "Subject" },
@@ -841,6 +876,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             //   k > 2.2  -> "solar system": individual member labels appear
             const k = globalScale;
             const clustering = clusterMode !== "none";
+            const isRadial = clusterMode === "radial";
             const isAnchor = clustering && node.isAnchor;
 
             const trust = node.trust;
@@ -853,7 +889,22 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             // behaves like a member (so plain mode still gets LOD labels).
             let memberAlpha = 1;
             if (!isAnchor) {
-              if (k < 0.6) memberAlpha = clustering ? 0 : 0.25;
+              if (isRadial) {
+                // 3-tier radial reveal keyed to branch level:
+                //   universe (k<0.5): only subject hubs (anchors) visible.
+                //   branches (0.5..1.4): predicate branches (level 2) fade in.
+                //   leaves   (k>1.0):   object leaves (level 3) fade in.
+                const lvl = node.__radLevel || 3;
+                if (lvl === 2) {
+                  if (k < 0.5) memberAlpha = 0;
+                  else if (k < 0.9) memberAlpha = (k - 0.5) / 0.4;
+                  else memberAlpha = 1;
+                } else {
+                  if (k < 1.0) memberAlpha = 0;
+                  else if (k < 1.7) memberAlpha = (k - 1.0) / 0.7;
+                  else memberAlpha = 1;
+                }
+              } else if (k < 0.6) memberAlpha = clustering ? 0 : 0.25;
               else if (k < 1.1) memberAlpha = (k - 0.6) / 0.5;
               else memberAlpha = 1;
             }
@@ -864,9 +915,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             }
 
             // Radius: anchors big and zoom-stable; members scale with trust.
+            // In radial mode predicate branches (level 2) read a bit bigger than
+            // object leaves (level 3) so the 3-level hierarchy is legible.
+            const radialBoost =
+              isRadial && !isAnchor ? (node.__radLevel === 2 ? 1.8 : 0) : 0;
             const baseR = isAnchor
               ? 6 + Math.min((node.triples?.length || 1) * 0.35, 8)
-              : 3 + (hasTrust ? trust * 6 : 1.5);
+              : 3 + radialBoost + (hasTrust ? trust * 6 : 1.5);
             const dotRadius = baseR / k;
 
             const a255 = Math.round(memberAlpha * 255)
@@ -922,9 +977,15 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             // ---- Labels (LOD) ----
             // Anchors: persistent prominent labels at every zoom level.
             // Members: labels appear when zoomed in (solar system), on focus,
-            // or for notably-trusted nodes.
-            const showMemberLabel =
+            // or for notably-trusted nodes. In radial mode predicate-branch
+            // labels resolve earlier (k>1.2) than object-leaf labels (k>2.0).
+            let showMemberLabel =
               isFocused || k > 2.2 || (hasTrust && trust > 0.4);
+            if (isRadial && !isAnchor) {
+              const lvl = node.__radLevel || 3;
+              showMemberLabel =
+                isFocused || (lvl === 2 ? k > 1.2 : k > 2.0);
+            }
             const showLabel = isAnchor || showMemberLabel;
             if (!showLabel) {
               node.__bckgDimensions = [dotRadius * 2, dotRadius * 2];
