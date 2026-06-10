@@ -8,11 +8,28 @@ import { getDefaultWallets, RainbowKitProvider, darkTheme } from '@rainbow-me/ra
 import { WagmiConfig, configureChains, createConfig } from 'wagmi';
 import { base, baseSepolia, mainnet, sepolia } from 'wagmi/chains';
 import { publicProvider } from 'wagmi/providers/public';
+import { defineChain } from 'viem';
 
 const projectId = process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'demo';
 
+// Intuition mainnet L3 (chain 1155, native TRUST). Listed first so RainbowKit
+// treats it as the app's primary chain.
+const intuition = defineChain({
+  id: 1155,
+  name: 'Intuition',
+  network: 'intuition',
+  nativeCurrency: { name: 'TRUST', symbol: 'TRUST', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://rpc.intuition.systems'] },
+    public: { http: ['https://rpc.intuition.systems'] },
+  },
+  blockExplorers: {
+    default: { name: 'Intuition Explorer', url: 'https://explorer.intuition.systems' },
+  },
+});
+
 const { chains, publicClient } = configureChains(
-  [base, baseSepolia, mainnet, sepolia],
+  [intuition, base, baseSepolia, mainnet, sepolia],
   [publicProvider()]
 );
 

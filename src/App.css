@@ -1,18 +1,35 @@
 /* src/App.css */
+:root {
+  --panel: rgba(16, 19, 28, 0.88);
+  --panel-soft: rgba(255, 255, 255, 0.05);
+  --panel-border: rgba(255, 255, 255, 0.09);
+  --panel-radius: 14px;
+  --accent: #6384ff;
+  --accent-strong: #4361ee;
+  --text: #e8ecf4;
+  --text-dim: #98a2b8;
+  --danger: #ff7d7d;
+}
+
 .App {
   text-align: center;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #1a1a1a;
+  background-color: #12141c;
+  color: var(--text);
 }
 
+/* ---- Header ---- */
 .App-header {
-  background-color: #282c34;
-  padding: 1rem;
-  color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
+  background: rgba(13, 15, 22, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0 18px;
+  height: 54px;
+  color: var(--text);
+  z-index: 1100;
   position: fixed;
   top: 0;
   left: 0;
@@ -22,7 +39,27 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  overflow: visible;
+}
+
+.header-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.App-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.header-tagline {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .header-right {
@@ -32,64 +69,33 @@
   flex-shrink: 0;
 }
 
-.header-center {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 10px;
-  z-index: 1001;
-}
-
-.tunnel {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
-  padding: 6px 10px;
-  border-radius: 999px;
-}
-
-.tunnel-label {
-  font-size: 12px;
-  color: #ddd;
-}
-
-.tunnel-select {
-  background: #111;
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 6px;
-  padding: 4px 6px;
-  font-size: 12px;
-}
-
 .env-badge {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(34, 197, 94, 0.08);
+  color: #d2f5de;
+  border: 1px solid rgba(34, 197, 94, 0.3);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 5px 11px;
   font-size: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .env-dot {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #22c55e; /* green */
+  background: #22c55e;
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
   position: relative;
+  flex: 0 0 auto;
 }
 
 /* Smooth pulsing ring to indicate active connection */
 .env-dot::after {
   content: "";
   position: absolute;
-  inset: -2px; /* start slightly larger than the dot */
+  inset: -2px;
   border-radius: 999px;
   box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
   animation: envPulse 1.6s ease-in-out infinite;
@@ -113,22 +119,41 @@
   }
 }
 
-.App-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 500;
-  white-space: nowrap;
+.navigation-button {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  color: var(--text);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+.navigation-button:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.connect-button {
+  background: rgba(99, 132, 255, 0.16);
+  border-color: rgba(99, 132, 255, 0.45);
+  color: #ccd8ff;
+}
+
+.connect-button:hover {
+  background: rgba(99, 132, 255, 0.3);
+  color: #fff;
+}
+
+/* ---- Main canvas area ---- */
 .App-main {
   flex: 1;
   position: relative;
   overflow: hidden;
-  /* Offset for fixed header height */
-  padding-top: 72px;
 }
 
-/* Graph container takes full size of main area */
 .App-main > div {
   position: absolute;
   top: 0;
@@ -137,24 +162,1068 @@
   bottom: 0;
 }
 
-/* Canvas styling */
-canvas {
-  border-radius: 4px;
-}
-
-/* Ensure the visualization container fills available space */
 .force-graph-container {
   width: 100% !important;
   height: 100% !important;
-  background-color: #1a1a1a;
+  background: radial-gradient(ellipse at 50% 38%, #1b2030 0%, #14161f 55%, #0e1016 100%);
 }
 
-.navigation-button {
-  padding: "5px";
-  border-radius: 4px;
-  border: "none";
-  cursor: "pointer";
-  font-size: "14px";
-  height: 30px;
-  border:none;
+/* ============================================================
+   Unified control dock
+   ============================================================ */
+.control-dock {
+  position: absolute;
+  top: 66px;
+  left: 12px;
+  z-index: 900;
+  width: 282px;
+  max-height: calc(100vh - 132px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  text-align: left;
+  user-select: none;
+}
+
+.control-dock.hidden {
+  display: none;
+}
+
+.dock-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dock-section:last-of-type {
+  border-bottom: none;
+}
+
+.dock-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px 4px;
+  box-sizing: border-box;
+}
+
+button.dock-section-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  color: inherit;
+  font: inherit;
+}
+
+button.dock-section-toggle:hover .dock-section-title {
+  color: var(--text);
+}
+
+.dock-section-title {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  transition: color 0.15s ease;
+}
+
+.dock-section-badge {
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--panel-soft);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.dock-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-dim);
+  transform: rotate(-90deg);
+  transition: transform 0.18s ease;
+}
+
+.dock-chevron.open {
+  transform: rotate(0deg);
+}
+
+.dock-section-body {
+  padding: 6px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.dock-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 0 0 var(--panel-radius) var(--panel-radius);
+}
+
+.dock-note {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Segmented controls */
+.dock-seg {
+  display: flex;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.dock-seg-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  border-radius: 7px;
+  padding: 6px 4px;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dock-seg-btn:hover {
+  color: var(--text);
+}
+
+.dock-seg-btn.active {
+  background: var(--accent-strong);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(67, 97, 238, 0.45);
+}
+
+/* Buttons */
+.dock-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dock-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.dock-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dock-btn-primary {
+  background: var(--accent-strong);
+  border-color: transparent;
+  color: #fff;
+}
+
+.dock-btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+/* Inputs + selects */
+.dock-input,
+.dock-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dock-input::placeholder {
+  color: rgba(152, 162, 184, 0.7);
+}
+
+.dock-input:focus,
+.dock-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 132, 255, 0.18);
+}
+
+.dock-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%2398a2b8' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.dock-select option {
+  background: #161a24;
+  color: var(--text);
+}
+
+.dock-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dock-field-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.dock-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dock-check input {
+  accent-color: var(--accent-strong);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.dock-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dock-history {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Dock legend */
+.dock-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.dock-legend li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.dock-legend-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.18);
+}
+
+.dock-legend-edge {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  background: linear-gradient(90deg, #ff7300, #27d3c4, #a66bff);
+}
+
+.dock-legend-trust {
+  align-items: flex-start;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.dock-legend-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.dock-legend-scale i {
+  display: inline-block;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.85;
+}
+
+.dock-legend-scale i:nth-child(1) {
+  width: 4px;
+  height: 4px;
+}
+
+.dock-legend-scale i:nth-child(2) {
+  width: 7px;
+  height: 7px;
+}
+
+.dock-legend-scale i:nth-child(3) {
+  width: 10px;
+  height: 10px;
+}
+
+/* Mobile dock toggle chip (hidden on desktop) */
+.dock-toggle {
+  display: none;
+}
+
+/* ---- Reality Tunnel section ---- */
+.tunnel-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.tunnel-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tunnel-mode:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.26);
+}
+
+.tunnel-mode.active {
+  background: rgba(67, 97, 238, 0.24);
+  border-color: var(--accent);
+  box-shadow: 0 0 14px rgba(99, 132, 255, 0.28);
+}
+
+.tunnel-mode:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.tunnel-mode-label {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.tunnel-mode.active .tunnel-mode-label {
+  color: #dbe4ff;
+}
+
+.tunnel-mode-caption {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+.tunnel-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.tunnel-account {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel-soft);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+
+.tunnel-account-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tunnel-account-source {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 999px;
+  padding: 2px 7px;
+  flex: 0 0 auto;
+}
+
+.tunnel-account-clear {
+  margin-left: auto;
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.tunnel-account-clear:hover {
+  color: #fff;
+}
+
+.tunnel-override {
+  display: flex;
+  gap: 6px;
+}
+
+.tunnel-override .dock-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tunnel-draft-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+/* ---- Predicate filter chips ---- */
+.predicate-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.predicate-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.predicate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #888;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.predicate-chip.off {
+  opacity: 0.4;
+}
+
+.predicate-chip-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Canvas overlays: stats strip, loading card, error banner, empty state
+   ============================================================ */
+.stats-strip {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 7px 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.stats-item b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.stats-mode {
+  color: #b9c8ff;
+  font-weight: 600;
+}
+
+.stats-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #d2f5de;
+}
+
+.load-card {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200;
+  min-width: 230px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 11px 15px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+.load-card-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.load-spinner {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(99, 132, 255, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  display: inline-block;
+  animation: dockSpin 0.8s linear infinite;
+}
+
+@keyframes dockSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.load-stage {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.load-stage.done {
+  color: var(--text);
+}
+
+.load-stage-mark {
+  flex: 0 0 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.load-stage-detail {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.error-banner {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1300;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 40px));
+  background: rgba(64, 18, 24, 0.92);
+  border: 1px solid rgba(255, 125, 125, 0.45);
+  border-radius: 12px;
+  padding: 9px 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+}
+
+.error-banner-text {
+  font-size: 12.5px;
+  color: #ffd9d9;
+}
+
+.error-banner-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 217, 217, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.error-banner-close:hover {
+  color: #fff;
+}
+
+.empty-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.empty-card {
+  pointer-events: auto;
+  max-width: 360px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  padding: 22px 26px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+}
+
+.empty-card-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text);
+  margin-bottom: 7px;
+}
+
+.empty-card-body {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+/* ---- Contextual hover tooltip ---- */
+.graph-tooltip {
+  position: fixed;
+  z-index: 2000;
+  pointer-events: none;
+  max-width: 280px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #fff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+.graph-tooltip-role {
+  display: inline-block;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.graph-tooltip-role.role-subject {
+  background: rgba(67, 97, 238, 0.85);
+}
+.graph-tooltip-role.role-predicate {
+  background: rgba(255, 115, 0, 0.85);
+}
+.graph-tooltip-role.role-object {
+  background: rgba(157, 78, 221, 0.85);
+}
+
+.graph-tooltip-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.graph-tooltip-line {
+  font-size: 12px;
+  color: #d6dae6;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* ============================================================
+   Focus mode (Arkham-style expand-on-demand)
+   ============================================================ */
+.focus-panel {
+  position: absolute;
+  top: 200px;
+  left: 12px;
+  z-index: 850;
+  width: 240px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.focus-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.focus-focal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.focus-focal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.focus-focal-label {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.focus-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.focus-more {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.focus-more-btn {
+  background: rgba(99, 132, 255, 0.18);
+  color: #ccd8ff;
+  border: 1px solid rgba(99, 132, 255, 0.4);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.focus-more-btn:hover {
+  background: rgba(99, 132, 255, 0.34);
+  color: #fff;
+}
+
+.focus-status {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #ffd27d;
+  line-height: 1.5;
+}
+
+.focus-legend {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 800;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.focus-legend-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.focus-legend-row:last-child {
+  margin-bottom: 0;
+}
+
+.focus-legend-dot {
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+  margin-right: 10px;
+  flex: 0 0 auto;
+}
+
+/* Collapse toggles for the focus panel + legend. Hidden on desktop (panels are
+   always expanded there); revealed as tap targets on mobile. */
+.focus-panel-toggle,
+.focus-legend-toggle {
+  display: none;
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.focus-panel-toggle {
+  font-size: 14px;
+  padding: 2px 6px;
+  margin-left: auto;
+  margin-right: 6px;
+  line-height: 1;
+}
+
+.focus-legend-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+/* ============================================================
+   Mobile (<= 768px): the graph owns the screen; the dock becomes a bottom
+   sheet behind a floating chip, the header slims down, panels shrink.
+   ============================================================ */
+@media (max-width: 768px) {
+  .App {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .App-header {
+    height: 46px;
+    padding: 0 10px;
+  }
+
+  .App-header h1 {
+    font-size: 13.5px;
+  }
+
+  .header-tagline,
+  .env-badge {
+    display: none;
+  }
+
+  .header-right .navigation-button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  /* Dock: floating chip + bottom sheet. */
+  .dock-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    z-index: 950;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    color: var(--text);
+    padding: 9px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .control-dock {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 68vh;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    z-index: 940;
+    padding-bottom: 52px;
+  }
+
+  /* Stats: tuck bottom-right, clear of the dock chip. */
+  .stats-strip {
+    left: auto;
+    right: 10px;
+    transform: none;
+    bottom: 12px;
+    gap: 9px;
+    padding: 6px 11px;
+    font-size: 10.5px;
+    max-width: calc(100vw - 130px);
+    overflow-x: auto;
+  }
+
+  .load-card {
+    top: 56px;
+    min-width: 0;
+    width: calc(100vw - 24px);
+    box-sizing: border-box;
+  }
+
+  .error-banner {
+    top: 56px;
+  }
+
+  /* Focus panel: floats under the header, collapsed by default via toggle. */
+  .focus-panel {
+    top: 56px;
+    left: 8px;
+    width: auto;
+    max-width: 62vw;
+    padding: 8px 10px;
+  }
+
+  .focus-panel-head {
+    margin-bottom: 6px;
+  }
+
+  .focus-panel-toggle {
+    display: inline-block;
+    font-size: 13px;
+  }
+
+  .focus-panel.collapsed .focus-panel-head {
+    margin-bottom: 0;
+  }
+
+  .focus-panel .dock-btn,
+  .focus-more-btn {
+    min-height: 30px;
+    touch-action: manipulation;
+  }
+
+  /* Focus legend: a small ⓘ chip bottom-right; expands to a compact card. */
+  .focus-legend {
+    bottom: 12px;
+    right: 8px;
+    padding: 8px 10px;
+  }
+
+  .focus-legend-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .focus-legend.collapsed {
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    width: 34px;
+    height: 34px;
+  }
+
+  .focus-legend.collapsed .focus-legend-toggle {
+    position: static;
+    width: 34px;
+    height: 34px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+  }
+
+  .focus-legend:not(.collapsed) {
+    padding-top: 28px;
+  }
+
+  /* Node detail sidebar becomes a bottom sheet so it doesn't cover the graph. */
+  .node-details-sidebar {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: auto;
+    max-height: 55vh;
+    border-radius: 16px 16px 0 0;
+    z-index: 1000;
+  }
+
+  /* Prevent text-selection jank on the floating controls. */
+  .control-dock,
+  .focus-panel,
+  .focus-legend,
+  .stats-strip {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }

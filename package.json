@@ -2,7 +2,7 @@
   "name": "intuition-visualization",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://graph.i7n.thp-lab.org",
+  "homepage": "https://graph.intuition.box",
   "dependencies": {
     "@rainbow-me/rainbowkit": "1.3.2",
     "wagmi": "1.4.13",
