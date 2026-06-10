@@ -371,3 +371,568 @@ canvas {
   line-height: 1.5;
   word-break: break-word;
 }
+
+/* ---- Focus mode (Arkham-style expand-on-demand) ---- */
+.focus-panel {
+  position: absolute;
+  top: 130px;
+  left: 10px;
+  z-index: 50;
+  width: 230px;
+  background: #444;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.focus-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.focus-focal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.focus-focal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.focus-focal-label {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.focus-hint {
+  font-size: 11px;
+  color: #bcbcbc;
+  line-height: 1.5;
+}
+
+.focus-more {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.focus-more-btn {
+  background: rgba(99, 132, 255, 0.9);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.focus-more-btn:hover {
+  background: rgba(99, 132, 255, 1);
+}
+
+.focus-status {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #ffd27d;
+  line-height: 1.5;
+}
+
+.focus-legend {
+  position: absolute;
+  bottom: 20px;
+  right: 10px;
+  z-index: 10;
+  background: #222;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+}
+
+.focus-legend-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.focus-legend-row:last-child {
+  margin-bottom: 0;
+}
+
+.focus-legend-dot {
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+  margin-right: 10px;
+  flex: 0 0 auto;
+}
+
+/* Collapse toggles for the focus panel + legend. Hidden on desktop (panels are
+   always expanded there); revealed as tap targets on mobile. */
+.focus-panel-toggle,
+.focus-legend-toggle,
+.graph-legend-toggle {
+  display: none;
+  background: transparent;
+  color: #cfcfcf;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.focus-panel-toggle {
+  font-size: 14px;
+  padding: 2px 6px;
+  margin-left: auto;
+  margin-right: 6px;
+  line-height: 1;
+}
+
+.focus-legend-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+/* ============================================================
+   Mobile (<= 768px): the GRAPH owns the screen. The canvas fills the whole
+   viewport (100dvw x 100dvh) and every control FLOATS on top of it in a corner
+   as a tiny, semi-transparent chip — nothing sits in document flow pushing the
+   canvas down. Secondary chrome (Reality-Tunnel modes, Endpoint, env badge,
+   history nav) is hidden or tucked behind a toggle. Desktop above is untouched.
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Dynamic viewport height so the canvas fills the screen even as the mobile
+     browser chrome shows/hides. */
+  .App {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Header no longer occupies flow. It becomes a transparent overlay whose
+     children float in corners; taps between controls fall through to the graph.
+     With the header out of flow, .App-main (flex:1 of the 100dvh column) fills
+     the ENTIRE viewport, so the canvas is full-screen. */
+  .App-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    pointer-events: none; /* let gaps pass touches to the canvas */
+    overflow: visible;
+    gap: 0;
+  }
+
+  .App-header > * {
+    pointer-events: auto; /* but the controls themselves stay tappable */
+  }
+
+  /* Title: a tiny, dim corner label — not a row. */
+  .App-header h1 {
+    position: fixed;
+    top: 7px;
+    left: 9px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+  }
+
+  /* Reality Tunnel: floats top-center as a compact 👁 pill; tapping it drops a
+     small popover with the trust modes (handled by .tunnel-toggle / .open). */
+  .header-center {
+    position: fixed;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    z-index: 70;
+  }
+
+  .tunnel.tunnel-wide {
+    position: relative;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(40, 44, 52, 0.82);
+    backdrop-filter: blur(4px);
+  }
+
+  /* The eye + active-mode label act as the toggle button. */
+  .tunnel-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font: inherit;
+    padding: 3px 2px;
+    min-height: 30px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .tunnel-toggle .tunnel-label {
+    font-size: 12px;
+    color: #fff;
+  }
+
+  /* Popover: the modes + hint drop below the pill, floating over the graph. */
+  .tunnel-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    background: rgba(40, 44, 52, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    z-index: 80;
+  }
+
+  .tunnel-popover .tunnel-modes {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tunnel-mode {
+    padding: 6px 10px; /* compact but still tappable (~30px tall) */
+    font-size: 12px;
+  }
+
+  .tunnel-popover .tunnel-hint {
+    white-space: normal;
+    text-align: center;
+    max-width: 60vw;
+  }
+
+  .tunnel-select {
+    min-height: 32px;
+    font-size: 13px;
+  }
+
+  /* Connect Wallet (+ env badge) float top-right. The badge is redundant on a
+     phone ("Intuition Mainnet" is implied) so hide it; keep Connect small. */
+  .header-right {
+    position: fixed;
+    top: 6px;
+    right: 6px;
+    gap: 6px;
+    z-index: 70;
+  }
+
+  .env-badge {
+    display: none;
+  }
+
+  .header-right .navigation-button {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
+    background: rgba(40, 44, 52, 0.82);
+    backdrop-filter: blur(4px);
+  }
+
+  /* No flow offset — the canvas owns the full height. */
+  .App-main {
+    padding-top: 0;
+  }
+
+  /* Default control button sizing on mobile: compact, not huge. */
+  .navigation-button {
+    min-height: 32px;
+    height: 32px;
+    font-size: 12px;
+    touch-action: manipulation;
+  }
+
+  /* History nav buttons (Return / Previous / Next): rarely used on a phone and
+     would crowd the top-left; hide to keep the canvas clear. */
+  .nav-history-btn {
+    display: none !important;
+  }
+
+  /* View Mode bar: floats top-right, just BELOW the Connect Wallet chip. In
+     Focus mode it's only the compact View-Mode <select>; in 2D it also carries
+     creators + search, which wrap and scroll inside a capped, narrow card. */
+  .view-mode-bar {
+    top: 44px !important;
+    right: 6px !important;
+    left: auto !important;
+    max-width: 56vw;
+    flex-wrap: wrap;
+    gap: 5px !important;
+    padding: 6px !important;
+    background: rgba(68, 68, 68, 0.85) !important;
+    backdrop-filter: blur(4px);
+    max-height: 40vh;
+    overflow-y: auto;
+    justify-content: flex-end;
+    z-index: 65 !important;
+  }
+
+  .view-mode-bar label {
+    font-size: 12px !important;
+  }
+
+  .view-mode-bar select,
+  .view-mode-bar input {
+    min-height: 30px;
+    font-size: 13px;
+    touch-action: manipulation;
+  }
+
+  .view-mode-bar input {
+    width: 76px !important;
+    flex: 1 1 76px;
+  }
+
+  /* 🔍 Filters chip: toggles the creators + search popover so they don't sit as
+     a permanent block clipping Connect Wallet. */
+  .filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 30px;
+    padding: 4px 9px;
+    font-size: 12px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  /* The collapsed filters drop into a compact column below the chip row. */
+  .view-mode-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .view-mode-filters > div {
+    flex-wrap: wrap;
+  }
+
+  /* 2D-only side panels: shrink + dock to the bottom corners + go translucent so
+     they read over the graph without blanketing it. */
+  .cluster-control {
+    top: auto;
+    bottom: 6px;
+    left: 6px;
+    padding: 5px 7px;
+    gap: 4px;
+    background: rgba(68, 68, 68, 0.85);
+    backdrop-filter: blur(4px);
+  }
+
+  .cluster-seg-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .predicate-filter {
+    top: auto;
+    bottom: 52px;
+    left: 6px;
+    width: 44vw;
+    max-width: 200px;
+    max-height: 28vh;
+    padding: 6px 8px;
+    background: rgba(68, 68, 68, 0.85);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Endpoint selector: defaults to Mainnet — hidden on mobile to reclaim the
+     whole top-left. (It is not needed for the demo's single mainnet endpoint.) */
+  .endpoint-selector {
+    display: none !important;
+  }
+
+  /* ---- Focus mode panel (the demo priority): floats top-left, collapsed to a
+     small pill by default; the toggle expands it. Translucent + compact. ---- */
+  .focus-panel {
+    top: 32px;
+    left: 6px;
+    right: auto;
+    width: auto;
+    max-width: 58vw; /* leave the top-right corner free for View Mode */
+    padding: 7px 9px;
+    background: rgba(68, 68, 68, 0.88);
+    backdrop-filter: blur(4px);
+  }
+
+  .focus-panel-head {
+    margin-bottom: 6px;
+  }
+
+  .focus-panel-toggle {
+    display: inline-block;
+    font-size: 13px;
+  }
+
+  .focus-panel.collapsed {
+    width: auto;
+  }
+
+  .focus-panel.collapsed .focus-panel-head {
+    margin-bottom: 0;
+  }
+
+  /* Reset / Show-more stay compact (~30px) — not the old 40px blocks. */
+  .focus-panel .predicate-all-btn,
+  .focus-more-btn {
+    min-height: 30px;
+    font-size: 11px;
+    touch-action: manipulation;
+  }
+
+  .focus-focal-label {
+    font-size: 13px;
+  }
+
+  /* Legend: a small ⓘ chip bottom-right; expands to a compact translucent card. */
+  .focus-legend {
+    bottom: 6px;
+    right: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    background: rgba(34, 34, 34, 0.9);
+    backdrop-filter: blur(4px);
+  }
+
+  .focus-legend-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .focus-legend.collapsed {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    width: 32px;
+    height: 32px;
+  }
+
+  .focus-legend.collapsed .focus-legend-toggle {
+    position: static;
+    width: 32px;
+    height: 32px;
+    background: rgba(34, 34, 34, 0.9);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .focus-legend:not(.collapsed) {
+    padding-top: 28px;
+  }
+
+  /* Legacy 2D/3D legend (inline-styled): collapses to a small ⓘ chip in the
+     bottom-right corner (like the Focus legend); the toggle expands it to a
+     compact translucent card. !important beats the inline absolute styles. */
+  .graph-legend {
+    top: auto !important;
+    bottom: 6px !important;
+    right: 6px !important;
+    padding: 22px 8px 6px !important;
+    font-size: 11px !important;
+    background: rgba(34, 34, 34, 0.9) !important;
+    backdrop-filter: blur(4px);
+  }
+
+  .graph-legend h4 {
+    font-size: 12px !important;
+  }
+
+  .graph-legend-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .graph-legend.collapsed {
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    width: 32px;
+    height: 32px;
+  }
+
+  .graph-legend.collapsed .graph-legend-toggle {
+    position: static;
+    width: 32px;
+    height: 32px;
+    background: rgba(34, 34, 34, 0.9);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Node detail sidebar becomes a bottom sheet so it doesn't cover the graph. */
+  .node-details-sidebar {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: auto;
+    max-height: 55vh;
+    border-radius: 12px 12px 0 0;
+  }
+
+  /* Prevent text-selection jank on the floating controls. */
+  .tunnel,
+  .cluster-control,
+  .predicate-filter,
+  .focus-panel,
+  .focus-legend,
+  .graph-legend,
+  .view-mode-bar {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

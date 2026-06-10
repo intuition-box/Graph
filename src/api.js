@@ -62,6 +62,13 @@ export const fetchTriplesForNode = async (nodeId, endpoint = "base") => {
   }
 };
 
+// Fetch the 1-hop neighborhood of an atom: every triple where the atom is the
+// subject OR object (predicate matches included). Used by the Arkham-style Focus
+// mode to expand a node on demand. Thin alias over fetchTriplesForNode so Focus
+// code reads with intent and there's a single seam if the hop query changes.
+export const fetchNeighborTriples = (atomId, endpoint = "base") =>
+  fetchTriplesForNode(atomId, endpoint);
+
 // Unified fetchAtomDetails function
 export const fetchAtomDetails = async (atomId, endpoint = "base") => {
   const module = getModuleForEndpoint(endpoint);

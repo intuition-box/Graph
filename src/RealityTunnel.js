@@ -14,6 +14,12 @@ const MODES = [
   { key: 'all', label: 'All circle' },
 ];
 
+// Treat narrow viewports as mobile so the trust modes can tuck behind a compact
+// popover instead of occupying a permanent row over the graph.
+const MOBILE_BP = 768;
+const isMobileViewport = () =>
+  typeof window !== 'undefined' && window.innerWidth <= MOBILE_BP;
+
 // Trust-circle-driven graph filter. Three trust modes (plus the default global
 // view) built from the connected wallet's on-chain trust circle.
 export default function RealityTunnel({
@@ -27,6 +33,16 @@ export default function RealityTunnel({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [singleAddress, setSingleAddress] = React.useState('');
+
+  // Mobile: the trust modes live behind a compact 👁 toggle (a popover) so they
+  // don't take a permanent row over the graph. Desktop keeps them always inline.
+  const [isMobile, setIsMobile] = React.useState(isMobileViewport);
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    const onResize = () => setIsMobile(isMobileViewport());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Load the trust circle whenever the connected wallet (or endpoint) changes.
   React.useEffect(() => {
@@ -93,42 +109,78 @@ export default function RealityTunnel({
 
   const trustDisabled = !connectedAddress || loading || (!error && circle.length === 0);
 
+  // On mobile the modes/select/hint collapse behind the 👁 toggle; on desktop
+  // they always show inline (kept byte-identical to the previous layout).
+  const showBody = !isMobile || open;
+  const modes = (
+    <div className="tunnel-modes" role="tablist">
+      {MODES.map((m) => {
+        const disabled = m.key !== 'global' && trustDisabled;
+        return (
+          <button
+            key={m.key}
+            type="button"
+            className={`tunnel-mode${mode === m.key ? ' active' : ''}`}
+            disabled={disabled}
+            onClick={() => setMode(m.key)}
+          >
+            {m.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+  const singleSelect = mode === 'single' && circle.length > 0 && (
+    <select
+      className="tunnel-select"
+      value={singleAddress}
+      onChange={(e) => setSingleAddress(e.target.value)}
+      title="See the graph from this account's perspective"
+    >
+      {circle.map((m) => (
+        <option key={m.address} value={m.address}>{m.label}</option>
+      ))}
+    </select>
+  );
+
   return (
     <div className="header-center" title="Filter the graph by your trust circle">
-      <div className="tunnel tunnel-wide">
-        <EyeIcon />
-        <span className="tunnel-label">Reality Tunnel</span>
-        <div className="tunnel-modes" role="tablist">
-          {MODES.map((m) => {
-            const disabled = m.key !== 'global' && trustDisabled;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                className={`tunnel-mode${mode === m.key ? ' active' : ''}`}
-                disabled={disabled}
-                onClick={() => setMode(m.key)}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {mode === 'single' && circle.length > 0 && (
-          <select
-            className="tunnel-select"
-            value={singleAddress}
-            onChange={(e) => setSingleAddress(e.target.value)}
-            title="See the graph from this account's perspective"
+      <div className={`tunnel tunnel-wide${isMobile && open ? ' open' : ''}`}>
+        {isMobile ? (
+          <button
+            type="button"
+            className="tunnel-toggle"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            title={open ? 'Hide trust modes' : 'Trust modes (Reality Tunnel)'}
           >
-            {circle.map((m) => (
-              <option key={m.address} value={m.address}>{m.label}</option>
-            ))}
-          </select>
+            <EyeIcon />
+            <span className="tunnel-label">
+              {MODES.find((m) => m.key === mode)?.label || 'Reality Tunnel'}
+            </span>
+          </button>
+        ) : (
+          <>
+            <EyeIcon />
+            <span className="tunnel-label">Reality Tunnel</span>
+          </>
         )}
 
-        {hint && <span className="tunnel-hint">{hint}</span>}
+        {showBody && (
+          isMobile ? (
+            <div className="tunnel-popover">
+              {modes}
+              {singleSelect}
+              {hint && <span className="tunnel-hint">{hint}</span>}
+            </div>
+          ) : (
+            <>
+              {modes}
+              {singleSelect}
+              {hint && <span className="tunnel-hint">{hint}</span>}
+            </>
+          )
+        )}
       </div>
     </div>
   );

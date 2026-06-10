@@ -4,6 +4,7 @@ import { ENDPOINTS } from './api';
 const EndpointSelector = ({ currentEndpoint, onEndpointChange }) => {
   return (
     <div
+      className="endpoint-selector"
       style={{
         position: "absolute",
         top: "10px",

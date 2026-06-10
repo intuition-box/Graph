@@ -15,8 +15,32 @@ import {
 import { NODE_COLORS } from "./nodeColors";
 import GraphLegend from "./GraphLegend";
 import GraphVR from "./GraphVR";
+import FocusGraph from "./FocusGraph";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
+
+// Treat narrow viewports as mobile: the filter chrome collapses behind a toggle,
+// nodes/labels get a touch-friendly size bump, and the 3D fly-controls hint hides.
+const MOBILE_BP = 768;
+const isMobileViewport = () =>
+  typeof window !== "undefined" && window.innerWidth <= MOBILE_BP;
+
+// Read an initial ?mode= from the URL so the app can deep-link straight into a
+// view (e.g. ?mode=focus for the Arkham-style focus explorer). Falls back to 2D.
+const getInitialViewMode = () => {
+  try {
+    const m = (new URLSearchParams(window.location.search).get("mode") || "")
+      .trim()
+      .toLowerCase();
+    if (m === "focus") return "focus";
+    if (m === "3d") return "3D";
+    if (m === "vr") return "VR";
+    if (m === "2d") return "2D";
+  } catch {
+    /* noop */
+  }
+  return "2D";
+};
 
 // Parse a share string to a finite number (shares are huge, but relative
 // magnitude is all we need for visual weighting).
@@ -116,15 +140,25 @@ const applyTrustWeights = (graph, triples, tripleWeights) => {
   return graph;
 };
 
-const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
+const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [viewMode, setViewMode] = useState("2D");
+  const [viewMode, setViewMode] = useState(getInitialViewMode);
   const [hoverNode, setHoverNode] = useState(null);
   const [selectedTriple, setSelectedTriple] = useState(null);
   const [showCreators, setShowCreators] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Mobile: the Show-Creators toggle + the 3 search inputs tuck behind a compact
+  // "Filters" popover so they don't occupy a permanent block over the graph.
+  // `isMobile` also scales node/label size for touch and hides the 3D fly hint.
+  const [isMobile, setIsMobile] = useState(isMobileViewport);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  useEffect(() => {
+    const onResize = () => setIsMobile(isMobileViewport());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const fgRef = useRef();
   const [graphHistory, setGraphHistory] = useState([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
@@ -555,6 +589,18 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
     if (isInitialLoad && fgRef.current) {
       setIsInitialLoad(false);
     }
+    // 3D: frame the whole graph once it settles so it's centered/visible (it
+    // otherwise loads near-empty, especially on a phone). zoomToFit is the
+    // ForceGraph3D camera-fit method; the padding leaves a small margin.
+    if (!didInitialFitRef.current && fgRef.current && viewMode === "3D") {
+      didInitialFitRef.current = true;
+      try {
+        fgRef.current.zoomToFit(600, isMobile ? 60 : 120);
+      } catch (e) {
+        /* noop */
+      }
+      return;
+    }
     // First time the simulation settles: frame the whole graph generously and
     // then pull WAY back so it reads as a sparse "universe" of cluster anchors.
     if (!didInitialFitRef.current && fgRef.current && viewMode === "2D") {
@@ -593,7 +639,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         /* noop */
       }
     }
-  }, [isInitialLoad, viewMode, clusterMode]);
+  }, [isInitialLoad, viewMode, clusterMode, isMobile]);
 
   // Track live zoom level for level-of-detail rendering.
   const handleZoom = useCallback((t) => {
@@ -771,8 +817,10 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
   return (
     <div onMouseMove={handleContainerMouseMove}>
       {(isLoading || isSearching) && <LoadingAnimation />}
+      {viewMode !== "focus" && (
+        <>
       <button
-        className="navigation-button"
+        className="navigation-button nav-history-btn nav-history-reset"
         onClick={resetGraph}
         style={{
           position: "absolute",
@@ -786,7 +834,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
       </button>
 
       <button
-        className="navigation-button"
+        className="navigation-button nav-history-btn nav-history-prev"
         onClick={goBack}
         style={{
           position: "absolute",
@@ -800,7 +848,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         Previous
       </button>
       <button
-        className="navigation-button"
+        className="navigation-button nav-history-btn nav-history-next"
         onClick={goForward}
         style={{
           position: "absolute",
@@ -813,8 +861,11 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
       >
         Next
       </button>
+        </>
+      )}
 
       <div
+        className="view-mode-bar"
         style={{
           position: "absolute",
           top: "82px",
@@ -847,9 +898,26 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
           <option value="2D">2D</option>
           <option value="3D">3D</option>
           <option value="VR">VR</option>
+          <option value="focus">Focus</option>
         </select>
 
-        <label style={{ fontSize: "14px", marginLeft: "10px" }}>
+        {/* Mobile: a 🔍 chip toggles the creators + search popover so they don't
+            sit as a permanent block clipping Connect Wallet. Desktop is inline. */}
+        {viewMode !== "focus" && isMobile && (
+          <button
+            type="button"
+            className="filters-toggle"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((v) => !v)}
+            title={filtersOpen ? "Hide filters" : "Show filters"}
+          >
+            🔍 Filters
+          </button>
+        )}
+
+        {viewMode !== "focus" && (!isMobile || filtersOpen) && (
+        <div className={isMobile ? "view-mode-filters" : undefined} style={isMobile ? undefined : { display: "contents" }}>
+        <label style={{ fontSize: "14px", marginLeft: isMobile ? 0 : "10px" }}>
           Show Creators
           <input
             type="checkbox"
@@ -900,6 +968,8 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             }}
           />
         </div>
+        </div>
+        )}
       </div>
 
       {/* Layout segmented control (2D only) */}
@@ -1050,9 +1120,13 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
 
             // Radius: subject hubs big and zoom-stable (scale with branch
             // count); object leaves small (scale with trust when present).
-            const baseR = isAnchor
-              ? 6 + Math.min((node.triples?.length || 1) * 0.3, 9)
-              : 3 + (hasTrust ? trust * 6 : 1.2);
+            // On a phone everything gets a ~1.5x bump so nodes are visible + the
+            // tap target (driven off baseR below) is fat-finger friendly.
+            const mobileScale = isMobile ? 1.5 : 1;
+            const baseR =
+              (isAnchor
+                ? 6 + Math.min((node.triples?.length || 1) * 0.3, 9)
+                : 3 + (hasTrust ? trust * 6 : 1.2)) * mobileScale;
             const dotRadius = baseR / k;
 
             const a255 = Math.round(memberAlpha * 255)
@@ -1126,11 +1200,12 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             }
 
             const label = truncate(node.label, isAnchor ? 26 : 22);
-            const fontPx = isAnchor
-              ? Math.max(13, isFocused ? 14 : 12)
-              : isFocused
-              ? 12
-              : 10;
+            const fontPx =
+              (isAnchor
+                ? Math.max(13, isFocused ? 14 : 12)
+                : isFocused
+                ? 12
+                : 10) * mobileScale;
             const fontSize = fontPx / k;
             ctx.font = `${isAnchor ? "600 " : ""}${fontSize}px Sans-Serif`;
             const textWidth = ctx.measureText(label).width;
@@ -1169,8 +1244,9 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
           nodePointerAreaPaint={(node, color, ctx) => {
             ctx.fillStyle = color;
             const r = (node.__bckgDimensions?.[0] || 6) / 2;
+            // Fatten the tap target on touch so small leaves are still hittable.
             ctx.beginPath();
-            ctx.arc(node.x, node.y, Math.max(r, 4), 0, 2 * Math.PI);
+            ctx.arc(node.x, node.y, Math.max(r, isMobile ? 8 : 4), 0, 2 * Math.PI);
             ctx.fill();
           }}
           linkColor={(l) => {
@@ -1245,7 +1321,11 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         <ForceGraph3D
           ref={(el) => (fgRef.current = el)}
           graphData={visibleGraph}
-          controlType="fly"
+          // Touch screens have no keyboard: use OrbitControls (one-finger rotate,
+          // pinch zoom, two-finger pan) instead of the desktop fly controls, and
+          // hide the WASD nav hint that only applies to fly.
+          controlType={isMobile ? "orbit" : "fly"}
+          showNavInfo={!isMobile}
           nodeLabel="label"
           onNodeClick={handleNodeClick}
           linkColor={(l) => l.color || "#888"}
@@ -1253,7 +1333,8 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           nodeAutoColorBy="type"
-          nodeRelSize={4}
+          // Bigger spheres on a phone so nodes are visible + easy to tap.
+          nodeRelSize={isMobile ? 6 : 4}
           nodeThreeObject={(node) => {
             const trust = node.trust;
             const hasTrust = typeof trust === "number";
@@ -1272,7 +1353,9 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
             sprite.backgroundColor = node.color + alpha;
             sprite.padding = 1;
             sprite.color = "#fff";
-            sprite.textHeight = hasTrust ? 3 + trust * 4 : 3;
+            // Larger label text on mobile for legibility.
+            const baseH = hasTrust ? 3 + trust * 4 : 3;
+            sprite.textHeight = isMobile ? baseH * 1.5 : baseH;
             return sprite;
           }}
           nodeThreeObjectExtend={true}
@@ -1290,7 +1373,11 @@ const GraphVisualization = ({ endpoint, userFilterAddress, trustCircle }) => {
         />
       )}
 
-      <GraphLegend showCreators={showCreators} />
+      {viewMode === "focus" && (
+        <FocusGraph endpoint={endpoint} address={address} />
+      )}
+
+      {viewMode !== "focus" && <GraphLegend showCreators={showCreators} />}
 
       {selectedTriple && (
         <NodeDetailsSidebar

@@ -117,6 +117,7 @@ function App() {
         />
         <GraphVisualization
           endpoint={endpoint}
+          address={address}
           userFilterAddress={userFilterAddress}
           trustCircle={trustCircle}
         />

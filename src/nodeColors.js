@@ -22,6 +22,30 @@ export const getNodeColor = (role) => {
   }
 };
 
+// ---- Atom-type colors + shapes (Focus mode) ---------------------------------
+// The Arkham-style Focus view colors and shapes each node by its ATOM TYPE
+// (Account/Person/Thing/Claim/...) rather than its subject/object role, so the
+// type of each entity is readable at a glance. Unknown/absent types fall back to
+// a neutral default. Keys are matched case-insensitively against atom.type.
+export const TYPE_STYLES = {
+  account: { color: "#3DA5FF", shape: "diamond", label: "Account" },
+  person: { color: "#54C45E", shape: "circle", label: "Person" },
+  organization: { color: "#27D3C4", shape: "square", label: "Organization" },
+  thing: { color: "#A66BFF", shape: "circle", label: "Thing" },
+  book: { color: "#F2C14E", shape: "square", label: "Book" },
+  claim: { color: "#E5446D", shape: "triangle", label: "Claim" },
+  triple: { color: "#FF7300", shape: "triangle", label: "Triple" },
+  atom: { color: "#9D4EDD", shape: "circle", label: "Atom" },
+  default: { color: "#8A93A6", shape: "circle", label: "Other" },
+};
+
+// Resolve an atom type string to a { color, shape, label } style. Robust to
+// casing and to null/undefined types (returns the neutral default).
+export const getTypeStyle = (type) => {
+  const key = String(type || "").toLowerCase();
+  return TYPE_STYLES[key] || TYPE_STYLES.default;
+};
+
 // ---- Predicate (edge) color palette -----------------------------------------
 // Mainnet has only ~12 distinct predicates, so a fixed, high-contrast palette
 // lets every relationship category read as a distinctly colored branch. Colors
