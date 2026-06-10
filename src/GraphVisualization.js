@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import * as d3 from "d3-force";
 import { ForceGraph2D, ForceGraph3D } from "react-force-graph";
 import SpriteText from "three-spritetext";
-import { fetchTriples, fetchTriplesForNode, searchTriples, createClient } from "./api";
-import { GetTriplesWithPositionsDocument } from "./vendor/intuition-graphql/dist/index.mjs";
+import { fetchTriples, fetchTriplesForNode, searchTriples, ENDPOINTS } from "./api";
+import { fetchTrustGraph } from "./trustCircle";
 import { transformToGraphData } from "./graphData";
 import {
   computeClusters,
@@ -13,14 +13,13 @@ import {
   applyRadialPositions,
 } from "./clustering";
 import { NODE_COLORS } from "./nodeColors";
-import GraphLegend from "./GraphLegend";
+import ControlDock from "./ControlDock";
 import GraphVR from "./GraphVR";
 import FocusGraph from "./FocusGraph";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
-import LoadingAnimation from "./LoadingAnimation";
 
-// Treat narrow viewports as mobile: the filter chrome collapses behind a toggle,
-// nodes/labels get a touch-friendly size bump, and the 3D fly-controls hint hides.
+// Treat narrow viewports as mobile: nodes/labels get a touch-friendly size bump
+// and the 3D fly-controls hint hides.
 const MOBILE_BP = 768;
 const isMobileViewport = () =>
   typeof window !== "undefined" && window.innerWidth <= MOBILE_BP;
@@ -42,11 +41,15 @@ const getInitialViewMode = () => {
   return "2D";
 };
 
-// Parse a share string to a finite number (shares are huge, but relative
-// magnitude is all we need for visual weighting).
-const toNum = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+// Render at most this many trust-mode triples (ranked by trust weight) so even
+// a whale account's tunnel stays a readable graph instead of a hairball.
+const MAX_TRUST_TRIPLES = 400;
+
+const MODE_LABELS = {
+  global: "Global",
+  mine: "My circle",
+  single: "Person",
+  all: "All circle",
 };
 
 // Truncate long labels so they don't overflow into neighbouring nodes.
@@ -97,21 +100,6 @@ const buildHoverContext = (node) => {
   };
 };
 
-// Map a raw GetTriplesWithPositions triple into the {subject,predicate,object}
-// shape that transformToGraphData expects.
-const toTriple = (t) => ({
-  id: t.term_id,
-  subject: t.subject
-    ? { id: t.subject.term_id, label: t.subject.label }
-    : { id: String(t.subject_id || t.term_id), label: String(t.subject_id || t.term_id) },
-  predicate: t.predicate
-    ? { id: t.predicate.term_id, label: t.predicate.label }
-    : { id: String(t.predicate_id || t.term_id), label: String(t.predicate_id || t.term_id) },
-  object: t.object
-    ? { id: t.object.term_id, label: t.object.label }
-    : { id: String(t.object_id || t.term_id), label: String(t.object_id || t.term_id) },
-});
-
 // Annotate nodes/links with a normalized trust signal (0..1) derived from the
 // summed trust-circle shares on each triple touching the node. Sets `node.trust`
 // (for sizing), `node.val` (force-graph node size) and `link.trust`.
@@ -140,7 +128,16 @@ const applyTrustWeights = (graph, triples, tripleWeights) => {
   return graph;
 };
 
-const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle }) => {
+const GraphVisualization = ({
+  endpoint,
+  onEndpointChange,
+  address,
+  addressSource,
+  accountLabel,
+  onAddressOverride,
+  tunnel,
+  onTunnelChange,
+}) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -149,11 +146,11 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
   const [selectedTriple, setSelectedTriple] = useState(null);
   const [showCreators, setShowCreators] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  // Mobile: the Show-Creators toggle + the 3 search inputs tuck behind a compact
-  // "Filters" popover so they don't occupy a permanent block over the graph.
-  // `isMobile` also scales node/label size for touch and hides the 3D fly hint.
+  const [loadStages, setLoadStages] = useState([]);
+  const [loadError, setLoadError] = useState(null);
+  const [emptyInfo, setEmptyInfo] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [isMobile, setIsMobile] = useState(isMobileViewport);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
     const onResize = () => setIsMobile(isMobileViewport());
     window.addEventListener("resize", onResize);
@@ -163,6 +160,12 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
   const [graphHistory, setGraphHistory] = useState([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
   const searchTimeoutRef = useRef(null);
+
+  const tunnelMode = tunnel?.mode || "global";
+  // The global loader reads the live mode through a ref so switching tunnel
+  // modes doesn't re-trigger the (expensive) global fetch.
+  const tunnelModeRef = useRef(tunnelMode);
+  tunnelModeRef.current = tunnelMode;
 
   // Clustering + semantic zoom (level-of-detail) state.
   // "radial" is the default: subject hubs (inner ring/center) with
@@ -220,7 +223,11 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
   );
 
   const togglePredicate = useCallback(
-    (pid) => {
+    (pid, isolate = false) => {
+      if (isolate) {
+        setEnabledPredicates(new Set([pid]));
+        return;
+      }
       setEnabledPredicates((prev) => {
         // First toggle off from "all on": seed with every id then remove this.
         const base =
@@ -239,10 +246,6 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
 
   const allPredicatesOn = useCallback(
     () => setEnabledPredicates(null),
-    []
-  );
-  const onlyPredicate = useCallback(
-    (pid) => setEnabledPredicates(new Set([pid])),
     []
   );
 
@@ -387,6 +390,8 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+      setLoadError(null);
+      setLoadStages([{ label: "Knowledge triples", detail: "fetching…" }]);
       try {
         const triples = await fetchTriples(endpoint);
         let baseGraphData = transformToGraphData(triples);
@@ -395,140 +400,124 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
           baseGraphData = enhanceGraphDataWithCreators(baseGraphData, triples);
         }
 
-        setGraphData(baseGraphData);
+        setLoadStages([
+          { label: "Knowledge triples", detail: String(triples.length), done: true },
+          {
+            label: "Atoms",
+            detail: String(baseGraphData.nodes.length),
+            done: true,
+          },
+        ]);
         setInitialGraphData(baseGraphData);
+        // A live trust mode owns the canvas; only the global view paints here.
+        if (tunnelModeRef.current === "global") {
+          setGraphData(baseGraphData);
+          setEmptyInfo(null);
+        }
       } catch (error) {
         console.error("Error loading graph data:", error);
+        setLoadError("Couldn't reach the Intuition mainnet API.");
       } finally {
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [showCreators, endpoint, enhanceGraphDataWithCreators]);
+  }, [showCreators, endpoint, enhanceGraphDataWithCreators, reloadKey]);
 
-  // Focus graph on user's positions when a single filter address is provided
-  // (Reality Tunnel "Single perspective" mode).
+  // Reality Tunnel: build the personalized subgraph for the active trust mode.
+  // Claims about circle atoms + claims the circle (and, for "all", the viewer)
+  // staked on, weighted by stake and capped to the strongest MAX_TRUST_TRIPLES.
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
-      if (!userFilterAddress) {
-        // restore initial graph (unless an aggregate trust-circle is active)
-        if (!trustCircle && initialGraphData) setGraphData(initialGraphData);
+      if (tunnelMode === "global") {
+        setEmptyInfo(null);
+        if (initialGraphData) setGraphData(initialGraphData);
+        return;
+      }
+      const members = tunnel?.members || [];
+      if (members.length === 0 && !tunnel?.selfAddress) {
+        setGraphData({ nodes: [], links: [] });
+        setEmptyInfo({
+          title: "Nothing to show yet",
+          body: "This mode has no accounts to draw from. Pick another mode in the Reality Tunnel panel.",
+        });
         return;
       }
       setIsLoading(true);
+      setLoadError(null);
+      setEmptyInfo(null);
+      setLoadStages([
+        {
+          label: "Trust circle",
+          detail: `${members.length} account${members.length === 1 ? "" : "s"}`,
+          done: true,
+        },
+        { label: "Staked claims & positions", detail: "fetching…" },
+      ]);
       try {
-        const client = createClient(endpoint);
-        const where = {
-          _or: [
-            { term: { vaults: { positions: { account_id: { _ilike: userFilterAddress } } } } },
-            { counter_term: { vaults: { positions: { account_id: { _ilike: userFilterAddress } } } } },
-          ],
-        };
-        const data = await client.request(GetTriplesWithPositionsDocument, {
-          where,
-          address: userFilterAddress,
-          limit: 1000,
+        const { triples, weights, counts } = await fetchTrustGraph(members, {
+          selfAddress: tunnel?.selfAddress || null,
+          endpoint,
         });
-        const raw = data?.triples || [];
-        const addrLc = String(userFilterAddress).toLowerCase();
-        const userSide = (side) => {
-          const vaults = side?.vaults || [];
-          let shares = 0;
-          let has = false;
-          vaults.forEach((v) => {
-            (v.positions || []).forEach((p) => {
-              if (String(p?.account?.id || '').toLowerCase() === addrLc) {
-                has = true;
-                shares += toNum(p?.shares);
-              }
-            });
-          });
-          return { has, shares };
-        };
-        const enriched = raw
-          .map((t) => {
-            const a = userSide(t.term);
-            const b = userSide(t.counter_term);
-            return { t, has: a.has || b.has, w: a.shares + b.shares };
-          })
-          .filter((x) => x.has);
-        const triples = enriched.map(({ t }) => toTriple(t));
-        const tripleWeights = {};
-        enriched.forEach(({ t, w }) => { tripleWeights[t.term_id] = w; });
+        if (cancelled) return;
+        setLoadStages([
+          {
+            label: "Trust circle",
+            detail: `${members.length} account${members.length === 1 ? "" : "s"}`,
+            done: true,
+          },
+          {
+            label: "Claims",
+            detail: `${counts.about} about · ${counts.staked} staked`,
+            done: true,
+          },
+          { label: "Positions", detail: String(counts.positions), done: true },
+        ]);
 
-        let userGraph = transformToGraphData(triples);
-        if (showCreators) {
-          userGraph = enhanceGraphDataWithCreators(userGraph, triples);
+        const ranked = [...triples].sort(
+          (a, b) => (weights[b.id] || 0) - (weights[a.id] || 0)
+        );
+        const kept = ranked.slice(0, MAX_TRUST_TRIPLES);
+        if (kept.length === 0) {
+          setGraphData({ nodes: [], links: [] });
+          setEmptyInfo({
+            title: "No staked claims found",
+            body:
+              tunnelMode === "single"
+                ? "This account hasn't staked on any claims and nothing is claimed about it yet."
+                : "Nobody in this trust circle has staked on a claim and nothing is claimed about them yet. Switch to Global to see the whole graph.",
+          });
+          return;
         }
-        applyTrustWeights(userGraph, triples, tripleWeights);
-        setGraphData(userGraph);
+
+        let trustGraph = transformToGraphData(kept);
+        if (showCreators) {
+          trustGraph = enhanceGraphDataWithCreators(trustGraph, kept);
+        }
+        applyTrustWeights(trustGraph, kept, weights);
+        setGraphData(trustGraph);
       } catch (e) {
-        console.error("Error focusing on user positions:", e);
+        console.error("Error building trust-tunnel graph:", e);
+        if (!cancelled) setLoadError("Couldn't load the trust-tunnel graph.");
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     run();
-  }, [userFilterAddress, endpoint, showCreators, enhanceGraphDataWithCreators, initialGraphData, trustCircle]);
-
-  // Aggregate the graph across the whole trust circle (Reality Tunnel "My
-  // circle" / "All circle" modes). Filters triples to those any trusted account
-  // holds a position on, and weights nodes by summed trust-circle shares.
-  useEffect(() => {
-    const run = async () => {
-      const addresses = trustCircle?.addresses || [];
-      if (!trustCircle || addresses.length === 0) {
-        if (!userFilterAddress && initialGraphData) setGraphData(initialGraphData);
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const client = createClient(endpoint);
-        const addrSet = new Set(addresses.map((a) => String(a).toLowerCase()));
-        const where = {
-          term: { vaults: { positions: { account_id: { _in: addresses } } } },
-        };
-        const data = await client.request(GetTriplesWithPositionsDocument, {
-          where,
-          address: "%",
-          limit: 1000,
-        });
-        const raw = data?.triples || [];
-        const circleShares = (side) => {
-          const vaults = side?.vaults || [];
-          let total = 0;
-          vaults.forEach((v) => {
-            (v.positions || []).forEach((p) => {
-              if (addrSet.has(String(p?.account?.id || '').toLowerCase())) {
-                total += toNum(p?.shares);
-              }
-            });
-          });
-          return total;
-        };
-        const enriched = raw.map((t) => ({
-          t,
-          w: circleShares(t.term) + circleShares(t.counter_term),
-        }));
-        const triples = enriched.map(({ t }) => toTriple(t));
-        const tripleWeights = {};
-        enriched.forEach(({ t, w }) => { tripleWeights[t.term_id] = w; });
-
-        let circleGraph = transformToGraphData(triples);
-        if (showCreators) {
-          circleGraph = enhanceGraphDataWithCreators(circleGraph, triples);
-        }
-        applyTrustWeights(circleGraph, triples, tripleWeights);
-        setGraphData(circleGraph);
-      } catch (e) {
-        console.error("Error building trust-circle graph:", e);
-      } finally {
-        setIsLoading(false);
-      }
+    return () => {
+      cancelled = true;
     };
-    run();
-  }, [trustCircle, userFilterAddress, endpoint, showCreators, enhanceGraphDataWithCreators, initialGraphData]);
+  }, [
+    tunnel,
+    tunnelMode,
+    endpoint,
+    showCreators,
+    enhanceGraphDataWithCreators,
+    initialGraphData,
+    reloadKey,
+  ]);
 
   const resetGraph = useCallback(() => {
     setGraphData(initialGraphData);
@@ -701,9 +690,14 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
       if (!searchResults || searchResults.length === 0) {
         console.log("No results found");
         setGraphData({ nodes: [], links: [] });
+        setEmptyInfo({
+          title: "No matching claims",
+          body: "Nothing in the graph matches these search filters. Clear them to restore the view.",
+        });
         return;
       }
 
+      setEmptyInfo(null);
       const newGraphData = transformToGraphData(searchResults);
       console.log("Transformed graph data:", newGraphData);
 
@@ -814,228 +808,86 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
     [handleNodeClick, viewMode]
   );
 
+  const retryLoad = useCallback(() => {
+    setLoadError(null);
+    setReloadKey((k) => k + 1);
+  }, []);
+
   return (
     <div onMouseMove={handleContainerMouseMove}>
-      {(isLoading || isSearching) && <LoadingAnimation />}
-      {viewMode !== "focus" && (
-        <>
-      <button
-        className="navigation-button nav-history-btn nav-history-reset"
-        onClick={resetGraph}
-        style={{
-          position: "absolute",
-          top: "75px",
-          left: "10px",
-          zIndex: 50,
-          width: "143px",
+      <ControlDock
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        endpoint={endpoint}
+        onEndpointChange={onEndpointChange}
+        tunnelProps={{
+          address,
+          addressLabel: accountLabel,
+          addressSource,
+          endpoint,
+          onChange: onTunnelChange,
+          onAddressOverride,
         }}
-      >
-        Return to initial graph
-      </button>
+        clusterMode={clusterMode}
+        onClusterModeChange={setClusterMode}
+        predicateList={predicateList}
+        enabledPredicates={enabledPredicates}
+        isPredicateOn={isPredicateOn}
+        onTogglePredicate={togglePredicate}
+        onAllPredicates={allPredicatesOn}
+        showCreators={showCreators}
+        onShowCreatorsChange={setShowCreators}
+        filters={{
+          subject: subjectFilter,
+          predicate: predicateFilter,
+          object: objectFilter,
+        }}
+        onFilterChange={handleSearchInput}
+        onResetGraph={resetGraph}
+        onBack={goBack}
+        onForward={goForward}
+        canBack={currentHistoryIndex > 0}
+        canForward={currentHistoryIndex < graphHistory.length - 1}
+      />
 
-      <button
-        className="navigation-button nav-history-btn nav-history-prev"
-        onClick={goBack}
-        style={{
-          position: "absolute",
-          top: "110px",
-          left: "10px",
-          width: "70px",
-          zIndex: 50,
-        }}
-        disabled={currentHistoryIndex <= 0}
-      >
-        Previous
-      </button>
-      <button
-        className="navigation-button nav-history-btn nav-history-next"
-        onClick={goForward}
-        style={{
-          position: "absolute",
-          top: "110px",
-          left: "83px",
-          width: "70px",
-          zIndex: 50,
-        }}
-        disabled={currentHistoryIndex >= graphHistory.length - 1}
-      >
-        Next
-      </button>
-        </>
-      )}
-
-      <div
-        className="view-mode-bar"
-        style={{
-          position: "absolute",
-          top: "82px",
-          right: "10px",
-          zIndex: 20,
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          background: "#444",
-          color: "#fff",
-          padding: "10px",
-          borderRadius: "4px",
-        }}
-      >
-        <label htmlFor="viewMode" style={{ fontSize: "14px" }}>
-          View Mode:
-        </label>
-        <select
-          id="viewMode"
-          value={viewMode}
-          onChange={(e) => setViewMode(e.target.value)}
-          style={{
-            padding: "5px",
-            borderRadius: "4px",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          <option value="2D">2D</option>
-          <option value="3D">3D</option>
-          <option value="VR">VR</option>
-          <option value="focus">Focus</option>
-        </select>
-
-        {/* Mobile: a 🔍 chip toggles the creators + search popover so they don't
-            sit as a permanent block clipping Connect Wallet. Desktop is inline. */}
-        {viewMode !== "focus" && isMobile && (
+      {loadError && (
+        <div className="error-banner" role="alert">
+          <span className="error-banner-text">{loadError}</span>
+          <button type="button" className="dock-btn" onClick={retryLoad}>
+            Retry
+          </button>
           <button
             type="button"
-            className="filters-toggle"
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((v) => !v)}
-            title={filtersOpen ? "Hide filters" : "Show filters"}
+            className="error-banner-close"
+            title="Dismiss"
+            onClick={() => setLoadError(null)}
           >
-            🔍 Filters
+            ✕
           </button>
-        )}
-
-        {viewMode !== "focus" && (!isMobile || filtersOpen) && (
-        <div className={isMobile ? "view-mode-filters" : undefined} style={isMobile ? undefined : { display: "contents" }}>
-        <label style={{ fontSize: "14px", marginLeft: isMobile ? 0 : "10px" }}>
-          Show Creators
-          <input
-            type="checkbox"
-            checked={showCreators}
-            onChange={(e) => setShowCreators(e.target.checked)}
-            style={{ marginLeft: "8px" }}
-          />
-        </label>
-        {/* Filtres alignés horizontalement sous l'endpoint */}
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <input
-            type="text"
-            value={subjectFilter}
-            onChange={(e) => handleSearchInput("subject", e.target.value)}
-            placeholder="Subject"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-          <input
-            type="text"
-            value={predicateFilter}
-            onChange={(e) => handleSearchInput("predicate", e.target.value)}
-            placeholder="Predicate"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-          <input
-            type="text"
-            value={objectFilter}
-            onChange={(e) => handleSearchInput("object", e.target.value)}
-            placeholder="Object"
-            style={{
-              padding: "5px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              fontSize: "14px",
-              width: "100px",
-            }}
-          />
-        </div>
-        </div>
-        )}
-      </div>
-
-      {/* Layout segmented control (2D only) */}
-      {viewMode === "2D" && (
-        <div className="cluster-control">
-          <span className="cluster-control-label">Layout</span>
-          <div className="cluster-seg">
-            {[
-              { key: "radial", label: "Radial" },
-              { key: "none", label: "Free" },
-              { key: "subject", label: "Subject" },
-            ].map((opt) => (
-              <button
-                key={opt.key}
-                type="button"
-                className={`cluster-seg-btn${
-                  clusterMode === opt.key ? " active" : ""
-                }`}
-                onClick={() => setClusterMode(opt.key)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 
-      {/* Predicate filter — toggle branch categories by color (2D only). */}
-      {viewMode === "2D" && predicateList.length > 0 && (
-        <div className="predicate-filter">
-          <div className="predicate-filter-head">
-            <span className="cluster-control-label">Predicates (branches)</span>
-            <button
-              type="button"
-              className="predicate-all-btn"
-              onClick={allPredicatesOn}
-              disabled={enabledPredicates === null}
-            >
-              All
-            </button>
+      {(isLoading || isSearching) && viewMode !== "focus" && (
+        <div className="load-card">
+          <div className="load-card-title">
+            <span className="load-spinner" />
+            {isSearching ? "Searching the graph" : "Loading graph"}
           </div>
-          <div className="predicate-chips">
-            {predicateList.map((p) => {
-              const on = isPredicateOn(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  title={`${p.label} (${p.count}) — click to toggle, shift-click to isolate`}
-                  className={`predicate-chip${on ? "" : " off"}`}
-                  style={{
-                    borderColor: p.color,
-                    background: on ? p.color + "33" : "transparent",
-                  }}
-                  onClick={(e) =>
-                    e.shiftKey ? onlyPredicate(p.id) : togglePredicate(p.id)
-                  }
-                >
-                  <span
-                    className="predicate-chip-dot"
-                    style={{ background: p.color }}
-                  />
-                  {truncate(p.label, 18)}
-                </button>
-              );
-            })}
+          {loadStages.map((s) => (
+            <div key={s.label} className={`load-stage${s.done ? " done" : ""}`}>
+              <span className="load-stage-mark">{s.done ? "✓" : "•"}</span>
+              <span className="load-stage-label">{s.label}</span>
+              <span className="load-stage-detail">{s.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {emptyInfo && !isLoading && !isSearching && viewMode !== "focus" && (
+        <div className="empty-overlay">
+          <div className="empty-card">
+            <div className="empty-card-title">{emptyInfo.title}</div>
+            <div className="empty-card-body">{emptyInfo.body}</div>
           </div>
         </div>
       )}
@@ -1377,7 +1229,23 @@ const GraphVisualization = ({ endpoint, address, userFilterAddress, trustCircle 
         <FocusGraph endpoint={endpoint} address={address} />
       )}
 
-      {viewMode !== "focus" && <GraphLegend showCreators={showCreators} />}
+      {viewMode !== "focus" && (
+        <div className="stats-strip">
+          <span className="stats-item">
+            <b>{visibleGraph.nodes.length}</b> nodes
+          </span>
+          <span className="stats-item">
+            <b>{visibleGraph.links.length}</b> edges
+          </span>
+          <span className="stats-item stats-mode">
+            {MODE_LABELS[tunnelMode] || tunnelMode}
+          </span>
+          <span className="stats-item stats-source">
+            <span className="env-dot" />
+            {ENDPOINTS[endpoint]?.displayName || endpoint}
+          </span>
+        </div>
+      )}
 
       {selectedTriple && (
         <NodeDetailsSidebar

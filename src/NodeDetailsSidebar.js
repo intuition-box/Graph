@@ -2,6 +2,13 @@ import React, { useEffect, useState } from "react";
 import { fetchTriples, fetchAtomDetails } from "./api";
 import "./NodeDetailsSidebar.css";
 
+const PORTAL_ATOM_URL = "https://portal.intuition.systems/explore/atom";
+
+const shortId = (id) => {
+  const s = String(id || "");
+  return s.length > 18 ? `${s.slice(0, 10)}…${s.slice(-6)}` : s;
+};
+
 const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
   const [additionalData, setAdditionalData] = useState(null);
   const [atomDetails, setAtomDetails] = useState(null);
@@ -17,9 +24,6 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
 
     const fetchData = async () => {
       try {
-        // Log the incoming triple for debugging
-        console.log("Received triple:", triple);
-
         const response = await fetchTriples(endpoint);
         const filteredData = response.filter(
           (item) =>
@@ -31,9 +35,7 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
         setAdditionalData(filteredData);
 
         if (triple.id) {
-          console.log("Fetching atom details for ID:", triple.id);
           const atomData = await fetchAtomDetails(triple.id, endpoint);
-          console.log("Received atom details:", atomData);
           setAtomDetails(atomData);
         }
       } catch (err) {
@@ -47,65 +49,83 @@ const NodeDetailsSidebar = ({ triple, endpoint, onClose }) => {
     fetchData();
   }, [triple, endpoint]);
 
-  const formatShares = (shares) => `${(shares / 1e18).toFixed(4)} ETH`;
+  const formatShares = (shares) => (Number(shares || 0) / 1e18).toFixed(4);
 
-  // If no triple is provided, don't render anything
-  if (!triple) {
-    console.log("No triple provided to sidebar");
-    return null;
-  }
-
-  console.log("Rendering sidebar with triple:", triple);
+  if (!triple) return null;
 
   return (
     <div className="node-details-sidebar">
-      <h2>{triple.label || "No Label"} Details</h2>
-      {loading && <p>Loading...</p>}
-      {error && <p>{error}</p>}
+      <div className="sidebar-head">
+        <h2 title={triple.label}>{triple.label || "No Label"}</h2>
+        <button
+          type="button"
+          className="sidebar-close"
+          title="Close"
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
+
+      {loading && (
+        <p className="sidebar-muted">
+          <span className="load-spinner" /> Loading details…
+        </p>
+      )}
+      {error && <p className="sidebar-error">{error}</p>}
 
       {atomDetails && (
-        <>
-          <h4>Atom Info</h4>
-          <p>
-            <strong>ID:</strong> {atomDetails.id}
-          </p>
-          <p>
-            <strong>Label:</strong> {atomDetails.label}
-          </p>
-          <p>
-            <strong>Type:</strong> {atomDetails.type}
-          </p>
-          <p>
-            <strong>Emoji:</strong> {atomDetails.emoji || "N/A"}
-          </p>
-          <p>
-            <strong>Creator:</strong> {atomDetails.creator?.label || "Unknown"}
-          </p>
-          <p>
-            <strong>Vault Shares:</strong>{" "}
-            {formatShares(atomDetails.vault?.total_shares || 0)}
-          </p>
-        </>
+        <dl className="sidebar-rows">
+          <div className="sidebar-row">
+            <dt>ID</dt>
+            <dd className="sidebar-mono" title={atomDetails.id}>
+              {shortId(atomDetails.id)}
+            </dd>
+          </div>
+          <div className="sidebar-row">
+            <dt>Type</dt>
+            <dd>{atomDetails.type || "—"}</dd>
+          </div>
+          <div className="sidebar-row">
+            <dt>Emoji</dt>
+            <dd>{atomDetails.emoji || "—"}</dd>
+          </div>
+          <div className="sidebar-row">
+            <dt>Creator</dt>
+            <dd>{atomDetails.creator?.label || "Unknown"}</dd>
+          </div>
+          <div className="sidebar-row">
+            <dt>Vault shares</dt>
+            <dd>{formatShares(atomDetails.vault?.total_shares)}</dd>
+          </div>
+        </dl>
       )}
+
+      <a
+        className="sidebar-link"
+        href={`${PORTAL_ATOM_URL}/${triple.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View on Intuition Portal ↗
+      </a>
 
       {additionalData && additionalData.length > 0 ? (
         <div className="related-triples">
-          <h4>Related Data:</h4>
+          <h4>Related claims</h4>
           <ul>
             {additionalData.map((item) => (
               <li key={item.id}>
-                <strong>Subject:</strong> {item.subject?.label} |{" "}
-                <strong>Predicate:</strong> {item.predicate?.label} |{" "}
-                <strong>Object:</strong> {item.object?.label}
+                <span className="related-subject">{item.subject?.label}</span>
+                <span className="related-predicate">{item.predicate?.label}</span>
+                <span className="related-object">{item.object?.label}</span>
               </li>
             ))}
           </ul>
         </div>
       ) : (
-        !loading && <p>No additional related data found.</p>
+        !loading && <p className="sidebar-muted">No related claims found.</p>
       )}
-
-      <button onClick={onClose}>Close</button>
     </div>
   );
 };

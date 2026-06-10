@@ -1,13 +1,11 @@
 // src/App.js
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import "./App.css";
 import GraphVisualization from "./GraphVisualization";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { createClient } from "./api";
 import { GetAccountMetadataDocument } from "./vendor/intuition-graphql/dist/index.mjs";
-import RealityTunnel from "./RealityTunnel";
-import EndpointSelector from "./EndpointSelector";
 
 // Test-address override: a real mainnet account with a 7-position trust circle
 // (6 unique trusted accounts). Used when ?address= is present without a value.
@@ -30,37 +28,45 @@ const getAddressOverride = () => {
 
 function App() {
   const [endpoint, setEndpoint] = useState("base");
-  // Reality Tunnel selection: { mode, addresses?, weights?, singleAddress? }
+  // Reality Tunnel selection: { mode } or { mode, members, selfAddress }.
   const [tunnel, setTunnel] = useState({ mode: "global" });
-  const { address: connectedWallet, isConnected } = useAccount();
+  const { address: connectedWallet } = useAccount();
   const [accountLabel, setAccountLabel] = useState("");
+  const [manualAddress, setManualAddress] = useState("");
 
-  // Precedence: a real connected wallet always wins; the ?address= URL override
-  // is the fallback for driving trust modes without connecting. The effective
-  // address un-gates the trust modes and feeds the trust-circle queries.
-  const addressOverride = useMemo(() => getAddressOverride(), []);
-  const address = connectedWallet || addressOverride;
-  const hasEffectiveAddress = isConnected || !!addressOverride;
+  // Precedence: an explicit dock override wins over the connected wallet, which
+  // wins over the ?address= URL override. The effective address un-gates the
+  // trust modes and feeds the trust-circle queries.
+  const urlOverride = useMemo(() => getAddressOverride(), []);
+  const address = manualAddress || connectedWallet || urlOverride;
+  const addressSource = manualAddress
+    ? "custom"
+    : connectedWallet
+    ? "wallet"
+    : urlOverride
+    ? "url"
+    : null;
 
-  // Single-perspective mode reuses the existing single-address filter path.
-  const userFilterAddress =
-    tunnel.mode === "single" ? tunnel.singleAddress || null : null;
-  // Aggregate trust-circle spec (mine / all) passed to the graph. Memoized on
-  // `tunnel` so the graph effects don't re-fire on every render.
-  const trustCircle = useMemo(
-    () =>
-      tunnel.mode === "mine" || tunnel.mode === "all"
-        ? { addresses: tunnel.addresses || [], weights: tunnel.weights || {} }
-        : null,
-    [tunnel]
-  );
+  // Dock override input handler: keeps the ?address= param in sync so the view
+  // is shareable/reload-safe.
+  const handleAddressOverride = useCallback((value) => {
+    setManualAddress(value || "");
+    try {
+      const url = new URL(window.location.href);
+      if (value) url.searchParams.set("address", value);
+      else url.searchParams.delete("address");
+      window.history.replaceState(null, "", url);
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   // Fetch human-readable label for the effective address (e.g., ENS/Basename as
-  // indexed by Intuition). Uses the connected wallet or the ?address= override.
+  // indexed by Intuition).
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!hasEffectiveAddress || !address) {
+      if (!address) {
         setAccountLabel("");
         return;
       }
@@ -76,18 +82,15 @@ function App() {
     };
     run();
     return () => { cancelled = true; };
-  }, [hasEffectiveAddress, address, endpoint]);
+  }, [address, endpoint]);
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>0xIntuition Graph</h1>
-        <RealityTunnel
-          connectedAddress={address}
-          connectedLabel={accountLabel}
-          endpoint={endpoint}
-          onChange={setTunnel}
-        />
+        <div className="header-brand">
+          <h1>0xIntuition Graph</h1>
+          <span className="header-tagline">Reality Tunnel explorer</span>
+        </div>
         <div className="header-right">
           <span className="env-badge" title="Using Intuition Mainnet API">
             <span className="env-dot" /> Intuition Mainnet
@@ -97,9 +100,8 @@ function App() {
               const connected = mounted && account;
               return (
                 <button
-                  className="navigation-button"
+                  className="navigation-button connect-button"
                   onClick={connected ? openAccountModal : openConnectModal}
-                  style={{ height: 34 }}
                 >
                   {connected
                     ? (accountLabel || account.displayName || 'Connected')
@@ -111,15 +113,15 @@ function App() {
         </div>
       </header>
       <main className="App-main">
-        <EndpointSelector
-          currentEndpoint={endpoint}
-          onEndpointChange={setEndpoint}
-        />
         <GraphVisualization
           endpoint={endpoint}
+          onEndpointChange={setEndpoint}
           address={address}
-          userFilterAddress={userFilterAddress}
-          trustCircle={trustCircle}
+          addressSource={addressSource}
+          accountLabel={accountLabel}
+          onAddressOverride={handleAddressOverride}
+          tunnel={tunnel}
+          onTunnelChange={setTunnel}
         />
       </main>
     </div>

@@ -17,7 +17,6 @@ import { fetchNeighborTriples, fetchTriples } from "./api";
 import { fetchTrustCircle } from "./trustCircle";
 import { getTypeStyle, TYPE_STYLES } from "./nodeColors";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
-import LoadingAnimation from "./LoadingAnimation";
 
 // Max neighbors revealed per expansion before the rest are gated behind a
 // "show more" — keeps even a very high-degree node readable.
@@ -443,12 +442,19 @@ const FocusGraph = ({ endpoint, address }) => {
 
   return (
     <div>
-      {loading && <LoadingAnimation />}
+      {loading && (
+        <div className="load-card">
+          <div className="load-card-title">
+            <span className="load-spinner" />
+            Loading connections
+          </div>
+        </div>
+      )}
 
       {/* Focus controls */}
       <div className={`focus-panel${panelOpen ? "" : " collapsed"}`}>
         <div className="focus-panel-head">
-          <span className="cluster-control-label">Focus</span>
+          <span className="dock-section-title">Focus</span>
           <button
             type="button"
             className="focus-panel-toggle"
@@ -460,7 +466,7 @@ const FocusGraph = ({ endpoint, address }) => {
           </button>
           <button
             type="button"
-            className="predicate-all-btn"
+            className="dock-btn"
             onClick={resetToFocal}
             disabled={!focalId}
             title="Collapse everything back to the focal node"
@@ -522,7 +528,7 @@ const FocusGraph = ({ endpoint, address }) => {
         </button>
         {legendOpen && (
         <>
-        <div className="cluster-control-label" style={{ marginBottom: 6 }}>
+        <div className="dock-section-title" style={{ marginBottom: 6 }}>
           Atom type
         </div>
         {Object.values(TYPE_STYLES).map((t) => (

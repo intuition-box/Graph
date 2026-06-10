@@ -1,54 +1,46 @@
 import React from 'react';
 import { fetchTrustCircle } from './trustCircle';
 
-const EyeIcon = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="#fff"/>
-  </svg>
-);
-
 const MODES = [
-  { key: 'global', label: 'Global' },
-  { key: 'mine', label: 'My circle' },
-  { key: 'single', label: 'Single' },
-  { key: 'all', label: 'All circle' },
+  { key: 'global', label: 'Global', caption: 'Everything indexed' },
+  { key: 'mine', label: 'My circle', caption: 'Around accounts you trust' },
+  { key: 'single', label: 'Person', caption: "Through one account's eyes" },
+  { key: 'all', label: 'All circle', caption: 'Circle + your own stakes' },
 ];
 
-// Treat narrow viewports as mobile so the trust modes can tuck behind a compact
-// popover instead of occupying a permanent row over the graph.
-const MOBILE_BP = 768;
-const isMobileViewport = () =>
-  typeof window !== 'undefined' && window.innerWidth <= MOBILE_BP;
+// Cap how many circle members feed the trust-graph query so a whale account
+// with hundreds of attestations can't blow up the _in filters.
+const MAX_MEMBERS = 50;
 
-// Trust-circle-driven graph filter. Three trust modes (plus the default global
-// view) built from the connected wallet's on-chain trust circle.
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
+
+const SOURCE_LABELS = { wallet: 'wallet', custom: 'override', url: 'url' };
+
+// Reality Tunnel dock section: pick the trust mode the graph is filtered by,
+// choose a perspective account, or override the viewing address entirely.
 export default function RealityTunnel({
-  connectedAddress,
-  connectedLabel,
+  address,
+  addressLabel,
+  addressSource,
   endpoint,
   onChange,
+  onAddressOverride,
 }) {
   const [mode, setMode] = React.useState('global');
   const [circle, setCircle] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [singleAddress, setSingleAddress] = React.useState('');
+  const [draft, setDraft] = React.useState('');
+  const [draftError, setDraftError] = React.useState('');
 
-  // Mobile: the trust modes live behind a compact 👁 toggle (a popover) so they
-  // don't take a permanent row over the graph. Desktop keeps them always inline.
-  const [isMobile, setIsMobile] = React.useState(isMobileViewport);
-  const [open, setOpen] = React.useState(false);
-  React.useEffect(() => {
-    const onResize = () => setIsMobile(isMobileViewport());
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  // Load the trust circle whenever the connected wallet (or endpoint) changes.
+  // Load the trust circle whenever the effective address (or endpoint) changes.
   React.useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!connectedAddress) {
+      if (!address) {
         setCircle([]);
         setError(null);
         return;
@@ -56,9 +48,9 @@ export default function RealityTunnel({
       setLoading(true);
       setError(null);
       try {
-        const members = await fetchTrustCircle(connectedAddress, endpoint);
+        const members = await fetchTrustCircle(address, endpoint);
         if (!cancelled) {
-          setCircle(members);
+          setCircle(members.slice(0, MAX_MEMBERS));
           setSingleAddress((prev) =>
             prev && members.find((m) => m.address.toLowerCase() === prev.toLowerCase())
               ? prev
@@ -73,115 +65,136 @@ export default function RealityTunnel({
     };
     run();
     return () => { cancelled = true; };
-  }, [connectedAddress, endpoint]);
+  }, [address, endpoint]);
 
   // Emit the active selection to the parent whenever inputs change.
   React.useEffect(() => {
     if (!onChange) return;
-    if (mode === 'global' || !connectedAddress) {
+    if (mode === 'global' || !address) {
       onChange({ mode: 'global' });
       return;
     }
     if (mode === 'single') {
-      onChange({ mode: 'single', singleAddress: singleAddress || null });
+      const member = circle.find(
+        (m) => m.address.toLowerCase() === singleAddress.toLowerCase()
+      );
+      onChange({ mode: 'single', members: member ? [member] : [] });
       return;
     }
-    // mine / all: aggregate across the trust circle. "all" also includes the
-    // connected wallet's own positions for the fullest perspective.
-    const addresses = circle.map((m) => m.address);
-    const weights = {};
-    circle.forEach((m) => { weights[m.address.toLowerCase()] = m.weight; });
     onChange({
       mode,
-      addresses: mode === 'all' ? [...addresses, connectedAddress] : addresses,
-      weights,
+      members: circle,
+      selfAddress: mode === 'all' ? address : null,
     });
-  }, [mode, singleAddress, circle, connectedAddress, onChange]);
+  }, [mode, singleAddress, circle, address, onChange]);
+
+  const applyDraft = () => {
+    const v = draft.trim();
+    if (v && !ADDRESS_RE.test(v)) {
+      setDraftError('Not a valid 0x address');
+      return;
+    }
+    setDraftError('');
+    setDraft('');
+    onAddressOverride?.(v || null);
+  };
 
   const hint = (() => {
-    if (!connectedAddress) return 'Connect wallet to use trust modes';
+    if (!address) return 'Connect a wallet or set an account below to unlock trust modes.';
     if (loading) return 'Loading trust circle…';
     if (error) return error;
-    if (mode !== 'global' && circle.length === 0) return 'Your trust circle is empty';
-    if (mode === 'global') return null;
-    return `${circle.length} trusted account${circle.length === 1 ? '' : 's'}`;
+    if (circle.length === 0)
+      return 'No trusted accounts found — All circle still shows your own staked claims.';
+    return `${circle.length} trusted account${circle.length === 1 ? '' : 's'} · weighted by stake`;
   })();
 
-  const trustDisabled = !connectedAddress || loading || (!error && circle.length === 0);
+  const circleDisabled = !address || loading || (!error && circle.length === 0);
+  const isDisabled = (key) => {
+    if (key === 'global') return false;
+    if (key === 'all') return !address || loading;
+    return circleDisabled;
+  };
 
-  // On mobile the modes/select/hint collapse behind the 👁 toggle; on desktop
-  // they always show inline (kept byte-identical to the previous layout).
-  const showBody = !isMobile || open;
-  const modes = (
-    <div className="tunnel-modes" role="tablist">
-      {MODES.map((m) => {
-        const disabled = m.key !== 'global' && trustDisabled;
-        return (
+  return (
+    <>
+      <div className="tunnel-modes" role="tablist">
+        {MODES.map((m) => (
           <button
             key={m.key}
             type="button"
+            role="tab"
+            aria-selected={mode === m.key}
             className={`tunnel-mode${mode === m.key ? ' active' : ''}`}
-            disabled={disabled}
+            disabled={isDisabled(m.key)}
             onClick={() => setMode(m.key)}
           >
-            {m.label}
+            <span className="tunnel-mode-label">{m.label}</span>
+            <span className="tunnel-mode-caption">{m.caption}</span>
           </button>
-        );
-      })}
-    </div>
-  );
-  const singleSelect = mode === 'single' && circle.length > 0 && (
-    <select
-      className="tunnel-select"
-      value={singleAddress}
-      onChange={(e) => setSingleAddress(e.target.value)}
-      title="See the graph from this account's perspective"
-    >
-      {circle.map((m) => (
-        <option key={m.address} value={m.address}>{m.label}</option>
-      ))}
-    </select>
-  );
+        ))}
+      </div>
 
-  return (
-    <div className="header-center" title="Filter the graph by your trust circle">
-      <div className={`tunnel tunnel-wide${isMobile && open ? ' open' : ''}`}>
-        {isMobile ? (
+      {mode === 'single' && circle.length > 0 && (
+        <label className="dock-field">
+          <span className="dock-field-label">Perspective</span>
+          <select
+            className="dock-select"
+            value={singleAddress}
+            onChange={(e) => setSingleAddress(e.target.value)}
+            title="See the graph from this account's perspective"
+          >
+            {circle.map((m) => (
+              <option key={m.address} value={m.address}>{m.label}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <p className="tunnel-hint">{hint}</p>
+
+      <div className="dock-field">
+        <span className="dock-field-label">Account</span>
+        {address && (
+          <div className="tunnel-account">
+            <span className="tunnel-account-name" title={address}>
+              {addressLabel || shortAddr(address)}
+            </span>
+            <span className="tunnel-account-source">
+              {SOURCE_LABELS[addressSource] || ''}
+            </span>
+            {addressSource === 'custom' && (
+              <button
+                type="button"
+                className="tunnel-account-clear"
+                title="Clear override"
+                onClick={() => onAddressOverride?.(null)}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+        <div className="tunnel-override">
+          <input
+            className="dock-input"
+            type="text"
+            value={draft}
+            placeholder="0x… view as address"
+            spellCheck={false}
+            onChange={(e) => { setDraft(e.target.value); setDraftError(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyDraft(); }}
+          />
           <button
             type="button"
-            className="tunnel-toggle"
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            title={open ? 'Hide trust modes' : 'Trust modes (Reality Tunnel)'}
+            className="dock-btn dock-btn-primary"
+            onClick={applyDraft}
+            disabled={!draft.trim()}
           >
-            <EyeIcon />
-            <span className="tunnel-label">
-              {MODES.find((m) => m.key === mode)?.label || 'Reality Tunnel'}
-            </span>
+            View
           </button>
-        ) : (
-          <>
-            <EyeIcon />
-            <span className="tunnel-label">Reality Tunnel</span>
-          </>
-        )}
-
-        {showBody && (
-          isMobile ? (
-            <div className="tunnel-popover">
-              {modes}
-              {singleSelect}
-              {hint && <span className="tunnel-hint">{hint}</span>}
-            </div>
-          ) : (
-            <>
-              {modes}
-              {singleSelect}
-              {hint && <span className="tunnel-hint">{hint}</span>}
-            </>
-          )
-        )}
+        </div>
+        {draftError && <span className="tunnel-draft-error">{draftError}</span>}
       </div>
-    </div>
+    </>
   );
 }
