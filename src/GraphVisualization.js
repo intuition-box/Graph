@@ -10,7 +10,7 @@ import GraphVR from "./GraphVR";
 import NodeDetailsSidebar from "./NodeDetailsSidebar";
 import LoadingAnimation from "./LoadingAnimation";
 
-const GraphVisualization = ({ endpoint, userFilterAddress }) => {
+const GraphVisualization = ({ endpoint, userFilterAddress, trustGraphData }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [initialGraphData, setInitialGraphData] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -338,9 +338,31 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
     }
   }, [shouldSearch, applyFilters]);
 
+  // When the Trust Circle reality tunnel is active, it supplies its own
+  // weighted graph and takes over rendering without disturbing the normal
+  // triples/search state above (so turning it off just falls back to that).
+  const displayGraphData = trustGraphData || graphData;
+
   return (
     <div>
       {(isLoading || isSearching) && <LoadingAnimation />}
+      {trustGraphData && (
+        <div
+          style={{
+            position: "absolute",
+            top: "10px",
+            left: "165px",
+            zIndex: 50,
+            background: "rgba(157, 78, 221, 0.85)",
+            color: "#fff",
+            padding: "6px 10px",
+            borderRadius: "999px",
+            fontSize: "12px",
+          }}
+        >
+          Trust Circle view
+        </div>
+      )}
       <button
         className="navigation-button"
         onClick={resetGraph}
@@ -475,15 +497,16 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
       {viewMode === "2D" && (
         <ForceGraph2D
           ref={(el) => (fgRef.current = el)}
-          graphData={graphData}
+          graphData={displayGraphData}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.label || "";
-            const fontSize = 12 / globalScale;
+            const sizeScale = node.val || 1;
+            const fontSize = (12 * sizeScale) / globalScale;
             ctx.font = `${fontSize}px Sans-Serif`;
 
             const textWidth = ctx.measureText(label).width;
-            const padding = 10 / globalScale;
-            const radius = 5 / globalScale;
+            const padding = (10 * sizeScale) / globalScale;
+            const radius = (5 * sizeScale) / globalScale;
 
             ctx.fillStyle = node.color + "CC";
             const x = node.x - textWidth / 2 - padding;
@@ -536,6 +559,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
               );
           }}
           linkColor={() => "#666"}
+          linkWidth={(link) => link.width || 1}
           linkDirectionalParticles={1}
           linkDirectionalParticleSpeed={0.02}
           linkDirectionalParticleColor={() => "#fff"}
@@ -548,11 +572,12 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
       {viewMode === "3D" && (
         <ForceGraph3D
           ref={(el) => (fgRef.current = el)}
-          graphData={graphData}
+          graphData={displayGraphData}
           controlType="fly"
           nodeLabel="label"
           onNodeClick={handleNodeClick}
           linkColor={() => "#666"}
+          linkWidth={(link) => link.width || 1}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           nodeAutoColorBy="type"
@@ -562,7 +587,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
             sprite.backgroundColor = node.color + "CC";
             sprite.padding = 1;
             sprite.color = "#fff";
-            sprite.textHeight = 2;
+            sprite.textHeight = 2 * (node.val || 1);
             return sprite;
           }}
           onEngineStop={handleEngineStop}
@@ -571,7 +596,7 @@ const GraphVisualization = ({ endpoint, userFilterAddress }) => {
 
       {viewMode === "VR" && (
         <GraphVR
-          graphData={graphData}
+          graphData={displayGraphData}
           onNodeClick={handleNodeClick}
           onBack={goBack}
           onForward={goForward}
