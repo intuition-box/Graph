@@ -6,8 +6,8 @@ import {
 
 export const ENDPOINTS = {
   base: {
-    url: "https://testnet.intuition.sh/v1/graphql",
-    displayName: "Intuition Testnet",
+    url: "https://mainnet.intuition.sh/v1/graphql",
+    displayName: "Intuition Mainnet",
   },
 };
 // Create GraphQL client based on endpoint
